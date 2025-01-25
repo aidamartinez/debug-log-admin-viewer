@@ -63,6 +63,7 @@ This project is licensed under the GPL v2 or later
 ## Credits
 
 Developed by TWK Media
+
 Website: thewebkitchen.co.uk
 
 Based on the WordPress Plugin Boilerplate by Devin Vinson 
