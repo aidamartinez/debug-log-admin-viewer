@@ -95,82 +95,97 @@ class Twk_Debugger_Admin {
     }
 
     public function validate_settings($input) {
-        // Create backup first
-        $backup_path = $this->create_backup();
-        if (!$backup_path) {
+        // Check if debug settings have actually changed
+        $current_constants = $this->get_config_constants();
+        $settings_changed = false;
+        
+        if (
+            (!empty($input['wp_debug']) != $current_constants['WP_DEBUG']) ||
+            (!empty($input['wp_debug_log']) != $current_constants['WP_DEBUG_LOG']) ||
+            (!empty($input['wp_debug_display']) != $current_constants['WP_DEBUG_DISPLAY'])
+        ) {
+            $settings_changed = true;
+        }
+
+        // Only proceed with backup and wp-config modification if debug settings changed
+        if ($settings_changed) {
+            // Create backup first
+            $backup_path = $this->create_backup();
+            if (!$backup_path) {
+                add_settings_error(
+                    $this->plugin_name,
+                    'backup_failed',
+                    'Could not create backup of wp-config.php file.',
+                    'error'
+                );
+                return false;
+            }
+
+            // Get wp-config.php content
+            $config_content = file_get_contents($this->wp_config_path);
+            if ($config_content === false) {
+                add_settings_error(
+                    $this->plugin_name,
+                    'wp_config_not_readable',
+                    'Could not read wp-config.php file.',
+                    'error'
+                );
+                return false;
+            }
+
+            // Prepare the debug constants
+            $debug_constants = "/* TWK Debugger Constants */\n";
+            $debug_constants .= "define( 'WP_DEBUG', " . (!empty($input['wp_debug']) ? 'true' : 'false') . " );\n";
+            $debug_constants .= "define( 'WP_DEBUG_LOG', " . (!empty($input['wp_debug_log']) ? 'true' : 'false') . " );\n";
+            $debug_constants .= "define( 'WP_DEBUG_DISPLAY', " . (!empty($input['wp_debug_display']) ? 'true' : 'false') . " );\n\n";
+
+            // Regular expressions for each constant
+            $patterns = array(
+                '/\/\* TWK Debugger Constants \*\/\n/',
+                '/define\s*\(\s*[\'"]WP_DEBUG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
+                '/define\s*\(\s*[\'"]WP_DEBUG_LOG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
+                '/define\s*\(\s*[\'"]WP_DEBUG_DISPLAY[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i'
+            );
+
+            // Remove existing debug constants if they exist
+            foreach ($patterns as $pattern) {
+                $config_content = preg_replace($pattern, '', $config_content);
+            }
+
+            // Find the position to insert the new constants
+            $marker = "/* That's all, stop editing! Happy blogging. */";
+            $pos = strpos($config_content, $marker);
+
+            if ($pos !== false) {
+                $config_content = substr_replace(
+                    $config_content,
+                    $debug_constants . $marker,
+                    $pos,
+                    strlen($marker)
+                );
+            } else {
+                // If marker not found, append to end of file
+                $config_content .= $debug_constants;
+            }
+
+            // Write the modified content back to wp-config.php
+            if (file_put_contents($this->wp_config_path, $config_content) === false) {
+                add_settings_error(
+                    $this->plugin_name,
+                    'wp_config_not_writable',
+                    'Could not update wp-config.php file. Please check file permissions.',
+                    'error'
+                );
+                return false;
+            }
+
             add_settings_error(
                 $this->plugin_name,
-                'backup_failed',
-                'Could not create backup of wp-config.php file.',
-                'error'
+                'settings_updated',
+                'Debug settings updated successfully.',
+                'success'
             );
-            return false;
         }
-
-        // Get wp-config.php content
-        $config_content = file_get_contents($this->wp_config_path);
-        if ($config_content === false) {
-            add_settings_error(
-                $this->plugin_name,
-                'wp_config_not_readable',
-                'Could not read wp-config.php file.',
-                'error'
-            );
-            return false;
-        }
-
-        // Prepare the debug constants
-        $debug_constants = "/* TWK Debugger Constants */\n";
-        $debug_constants .= "define( 'WP_DEBUG', " . (!empty($input['wp_debug']) ? 'true' : 'false') . " );\n";
-        $debug_constants .= "define( 'WP_DEBUG_LOG', " . (!empty($input['wp_debug_log']) ? 'true' : 'false') . " );\n";
-        $debug_constants .= "define( 'WP_DEBUG_DISPLAY', " . (!empty($input['wp_debug_display']) ? 'true' : 'false') . " );\n\n";
-
-        // Regular expressions for each constant
-        $patterns = array(
-            '/\/\* TWK Debugger Constants \*\/\n/',
-            '/define\s*\(\s*[\'"]WP_DEBUG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
-            '/define\s*\(\s*[\'"]WP_DEBUG_LOG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
-            '/define\s*\(\s*[\'"]WP_DEBUG_DISPLAY[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i'
-        );
-
-        // Remove existing debug constants if they exist
-        foreach ($patterns as $pattern) {
-            $config_content = preg_replace($pattern, '', $config_content);
-        }
-
-        // Find the position to insert the new constants
-        $marker = "/* That's all, stop editing! Happy blogging. */";
-        $pos = strpos($config_content, $marker);
-
-        if ($pos !== false) {
-            $config_content = substr_replace(
-                $config_content,
-                $debug_constants . $marker,
-                $pos,
-                strlen($marker)
-            );
-        } else {
-            // If marker not found, append to end of file
-            $config_content .= $debug_constants;
-        }
-
-        // Write the modified content back to wp-config.php
-        if (file_put_contents($this->wp_config_path, $config_content) === false) {
-            add_settings_error(
-                $this->plugin_name,
-                'wp_config_not_writable',
-                'Could not update wp-config.php file. Please check file permissions.',
-                'error'
-            );
-            return false;
-        }
-
-        add_settings_error(
-            $this->plugin_name,
-            'settings_updated',
-            'Debug settings updated successfully.',
-            'success'
-        );
 
         return $input;
     }
@@ -214,6 +229,7 @@ class Twk_Debugger_Admin {
                 settings_fields($this->plugin_name);
                 ?>
 
+                <h2>Debug Settings</h2>
                 <table class="form-table">
                     <tr>
                         <th scope="row">Enable WP_DEBUG</th>
@@ -237,6 +253,11 @@ class Twk_Debugger_Admin {
                         </td>
                     </tr>
                 </table>
+
+                <?php
+                // This will output the new SE visibility section
+                do_settings_sections($this->plugin_name);
+                ?>
 
                 <?php submit_button(); ?>
             </form>
