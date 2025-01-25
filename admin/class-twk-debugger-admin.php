@@ -88,9 +88,15 @@ class Twk_Debugger_Admin {
     }
 
     public function register_settings() {
-        // Register the settings
+        // Debug settings
         register_setting($this->plugin_name, 'twk_debugger_settings', array(
             'sanitize_callback' => array($this, 'validate_settings')
+        ));
+
+        // SE Visibility notification setting
+        register_setting($this->plugin_name, 'twk_debugger_se_visibility_notification', array(
+            'type' => 'boolean',
+            'default' => false
         ));
     }
 
@@ -191,10 +197,11 @@ class Twk_Debugger_Admin {
     }
 
     public function display_options_page() {
+        // Get current tab
+        $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'debug';
+        
         // Get actual values from wp-config.php
         $config_constants = $this->get_config_constants();
-        
-        // Check if wp-config.php is writable
         $config_writable = $this->wp_config_path && is_writable($this->wp_config_path);
         
         // Handle log clearing
@@ -213,65 +220,90 @@ class Twk_Debugger_Admin {
                 $log_content = file_get_contents($log_file);
             }
         }
-
         ?>
         <div class="wrap">
             <h2>TWK Debugger Settings</h2>
-            
+
+            <h2 class="nav-tab-wrapper">
+                <a href="?page=<?php echo $this->plugin_name; ?>&tab=debug" 
+                   class="nav-tab <?php echo $active_tab == 'debug' ? 'nav-tab-active' : ''; ?>">
+                    DEBUG
+                </a>
+                <a href="?page=<?php echo $this->plugin_name; ?>&tab=misc" 
+                   class="nav-tab <?php echo $active_tab == 'misc' ? 'nav-tab-active' : ''; ?>">
+                    Miscellaneous
+                </a>
+            </h2>
+
             <?php if (!$config_writable): ?>
-            <div class="notice notice-error">
-                <p>Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.</p>
-            </div>
+                <div class="notice notice-error">
+                    <p>Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.</p>
+                </div>
             <?php endif; ?>
 
             <form method="post" action="options.php">
                 <?php
                 settings_fields($this->plugin_name);
-                ?>
+                
+                if ($active_tab == 'debug') {
+                    // DEBUG tab content
+                    ?>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Enable WP_DEBUG</th>
+                            <td>
+                                <input type="checkbox" name="twk_debugger_settings[wp_debug]" 
+                                       value="1" <?php checked($config_constants['WP_DEBUG'], true); ?> />
+                                <p class="description">Enables WordPress debug mode</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Enable WP_DEBUG_LOG</th>
+                            <td>
+                                <input type="checkbox" name="twk_debugger_settings[wp_debug_log]" 
+                                       value="1" <?php checked($config_constants['WP_DEBUG_LOG'], true); ?> />
+                                <p class="description">Saves debug messages to wp-content/debug.log</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Enable WP_DEBUG_DISPLAY</th>
+                            <td>
+                                <input type="checkbox" name="twk_debugger_settings[wp_debug_display]" 
+                                       value="1" <?php checked($config_constants['WP_DEBUG_DISPLAY'], true); ?> />
+                                <p class="description">Shows debug messages on the front end</p>
+                            </td>
+                        </tr>
+                    </table>
 
-                <h2>Debug Settings</h2>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">Enable WP_DEBUG</th>
-                        <td>
-                            <input type="checkbox" name="twk_debugger_settings[wp_debug]" value="1" <?php checked($config_constants['WP_DEBUG'], true); ?> />
-                            <p class="description">Enables WordPress debug mode</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Enable WP_DEBUG_LOG</th>
-                        <td>
-                            <input type="checkbox" name="twk_debugger_settings[wp_debug_log]" value="1" <?php checked($config_constants['WP_DEBUG_LOG'], true); ?> />
-                            <p class="description">Saves debug messages to wp-content/debug.log</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Enable WP_DEBUG_DISPLAY</th>
-                        <td>
-                            <input type="checkbox" name="twk_debugger_settings[wp_debug_display]" value="1" <?php checked($config_constants['WP_DEBUG_DISPLAY'], true); ?> />
-                            <p class="description">Shows debug messages on the front end</p>
-                        </td>
-                    </tr>
-                </table>
+                    <?php submit_button(); ?>
 
-                <?php
-                // This will output the new SE visibility section
-                do_settings_sections($this->plugin_name);
-                ?>
+                    <?php if ($config_constants['WP_DEBUG_LOG'] && !empty($log_content)): ?>
+                        <h3>Debug Log</h3>
+                        <form method="post">
+                            <?php wp_nonce_field('twk_debugger_clear_log'); ?>
+                            <input type="submit" name="clear_debug_log" class="button button-secondary" value="Clear Log File" />
+                        </form>
+                        <div style="background: #fff; padding: 10px; margin-top: 10px; border: 1px solid #ccc; max-height: 400px; overflow-y: auto;">
+                            <pre><?php echo esc_html($log_content); ?></pre>
+                        </div>
+                    <?php endif; ?>
 
-                <?php submit_button(); ?>
+                <?php } else { ?>
+                    <!-- Miscellaneous tab content -->
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Search Engine Visibility Notification</th>
+                            <td>
+                                <input type="checkbox" name="twk_debugger_se_visibility_notification" 
+                                       value="1" <?php checked(get_option('twk_debugger_se_visibility_notification'), 1); ?> />
+                                <p class="description">Show a notification in the admin bar when search engines are discouraged from indexing this site.</p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <?php submit_button(); ?>
+                <?php } ?>
             </form>
-
-            <?php if ($config_constants['WP_DEBUG_LOG'] && !empty($log_content)): ?>
-                <h3>Debug Log</h3>
-                <form method="post">
-                    <?php wp_nonce_field('twk_debugger_clear_log'); ?>
-                    <input type="submit" name="clear_debug_log" class="button button-secondary" value="Clear Log File" />
-                </form>
-                <div style="background: #fff; padding: 10px; margin-top: 10px; border: 1px solid #ccc; max-height: 400px; overflow-y: auto;">
-                    <pre><?php echo esc_html($log_content); ?></pre>
-                </div>
-            <?php endif; ?>
         </div>
         <?php
     }
