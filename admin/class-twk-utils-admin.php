@@ -1,5 +1,5 @@
 <?php
-class Twk_Debugger_Admin {
+class Twk_Utils_Admin {
     private $plugin_name;
     private $version;
     private $wp_config_path;
@@ -13,7 +13,7 @@ class Twk_Debugger_Admin {
         
         // Set up backup directory
         $upload_dir = wp_upload_dir();
-        $this->backup_dir = $upload_dir['basedir'] . '/twk-debugger';
+        $this->backup_dir = $upload_dir['basedir'] . '/twk-utils';
         
         // Create backup directory if it doesn't exist
         if (!file_exists($this->backup_dir)) {
@@ -79,8 +79,8 @@ class Twk_Debugger_Admin {
 
     public function add_options_page() {
         add_options_page(
-            'TWK Debugger Settings',
-            'TWK Debugger',
+            'TWK Utils Settings',
+            'TWK Utils',
             'manage_options',
             $this->plugin_name,
             array($this, 'display_options_page')
@@ -89,12 +89,16 @@ class Twk_Debugger_Admin {
 
     public function register_settings() {
         // Debug settings
-        register_setting($this->plugin_name, 'twk_debugger_settings', array(
-            'sanitize_callback' => array($this, 'validate_settings')
-        ));
+        register_setting(
+            'twk_utils_debug_group',
+            'twk_utils_debug_settings',
+            array(
+                'sanitize_callback' => array($this, 'validate_settings')
+            )
+        );
 
         // SE Visibility notification setting
-        register_setting($this->plugin_name, 'twk_debugger_se_visibility_notification', array(
+        register_setting($this->plugin_name, 'twk_utils_se_visibility_notification', array(
             'type' => 'boolean',
             'default' => false
         ));
@@ -105,10 +109,14 @@ class Twk_Debugger_Admin {
         $current_constants = $this->get_config_constants();
         $settings_changed = false;
         
+        // Ensure input is an array
+        $input = is_array($input) ? $input : array();
+        
+        // Compare with current settings
         if (
-            (!empty($input['wp_debug']) != $current_constants['WP_DEBUG']) ||
-            (!empty($input['wp_debug_log']) != $current_constants['WP_DEBUG_LOG']) ||
-            (!empty($input['wp_debug_display']) != $current_constants['WP_DEBUG_DISPLAY'])
+            (isset($input['wp_debug']) != $current_constants['WP_DEBUG']) ||
+            (isset($input['wp_debug_log']) != $current_constants['WP_DEBUG_LOG']) ||
+            (isset($input['wp_debug_display']) != $current_constants['WP_DEBUG_DISPLAY'])
         ) {
             $settings_changed = true;
         }
@@ -124,7 +132,7 @@ class Twk_Debugger_Admin {
                     'Could not create backup of wp-config.php file.',
                     'error'
                 );
-                return false;
+                return $input;
             }
 
             // Get wp-config.php content
@@ -136,18 +144,18 @@ class Twk_Debugger_Admin {
                     'Could not read wp-config.php file.',
                     'error'
                 );
-                return false;
+                return $input;
             }
 
             // Prepare the debug constants
-            $debug_constants = "/* TWK Debugger Constants */\n";
+            $debug_constants = "/* TWK Utils Constants */\n";
             $debug_constants .= "define( 'WP_DEBUG', " . (!empty($input['wp_debug']) ? 'true' : 'false') . " );\n";
             $debug_constants .= "define( 'WP_DEBUG_LOG', " . (!empty($input['wp_debug_log']) ? 'true' : 'false') . " );\n";
             $debug_constants .= "define( 'WP_DEBUG_DISPLAY', " . (!empty($input['wp_debug_display']) ? 'true' : 'false') . " );\n\n";
 
             // Regular expressions for each constant
             $patterns = array(
-                '/\/\* TWK Debugger Constants \*\/\n/',
+                '/\/\* TWK Utils Constants \*\/\n/',
                 '/define\s*\(\s*[\'"]WP_DEBUG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
                 '/define\s*\(\s*[\'"]WP_DEBUG_LOG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
                 '/define\s*\(\s*[\'"]WP_DEBUG_DISPLAY[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i'
@@ -182,7 +190,7 @@ class Twk_Debugger_Admin {
                     'Could not update wp-config.php file. Please check file permissions.',
                     'error'
                 );
-                return false;
+                return $input;
             }
 
             add_settings_error(
@@ -222,7 +230,7 @@ class Twk_Debugger_Admin {
         }
         ?>
         <div class="wrap">
-            <h2>TWK Debugger Settings</h2>
+            <h2>TWK Utils Settings</h2>
 
             <h2 class="nav-tab-wrapper">
                 <a href="?page=<?php echo $this->plugin_name; ?>&tab=debug" 
@@ -239,20 +247,18 @@ class Twk_Debugger_Admin {
                 <div class="notice notice-error">
                     <p>Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.</p>
                 </div>
-            <?php endif; ?>
+            <?php endif; 
 
-            <form method="post" action="options.php">
-                <?php
-                settings_fields($this->plugin_name);
-                
-                if ($active_tab == 'debug') {
-                    // DEBUG tab content
+            if ($active_tab == 'debug') { ?>
+                <form method="post" action="options.php">
+                    <?php
+                    settings_fields('twk_utils_debug_group');
                     ?>
                     <table class="form-table">
                         <tr>
                             <th scope="row">Enable WP_DEBUG</th>
                             <td>
-                                <input type="checkbox" name="twk_debugger_settings[wp_debug]" 
+                                <input type="checkbox" name="twk_utils_debug_settings[wp_debug]" 
                                        value="1" <?php checked($config_constants['WP_DEBUG'], true); ?> />
                                 <p class="description">Enables WordPress debug mode</p>
                             </td>
@@ -260,7 +266,7 @@ class Twk_Debugger_Admin {
                         <tr>
                             <th scope="row">Enable WP_DEBUG_LOG</th>
                             <td>
-                                <input type="checkbox" name="twk_debugger_settings[wp_debug_log]" 
+                                <input type="checkbox" name="twk_utils_debug_settings[wp_debug_log]" 
                                        value="1" <?php checked($config_constants['WP_DEBUG_LOG'], true); ?> />
                                 <p class="description">Saves debug messages to wp-content/debug.log</p>
                             </td>
@@ -268,7 +274,7 @@ class Twk_Debugger_Admin {
                         <tr>
                             <th scope="row">Enable WP_DEBUG_DISPLAY</th>
                             <td>
-                                <input type="checkbox" name="twk_debugger_settings[wp_debug_display]" 
+                                <input type="checkbox" name="twk_utils_debug_settings[wp_debug_display]" 
                                        value="1" <?php checked($config_constants['WP_DEBUG_DISPLAY'], true); ?> />
                                 <p class="description">Shows debug messages on the front end</p>
                             </td>
@@ -276,34 +282,27 @@ class Twk_Debugger_Admin {
                     </table>
 
                     <?php submit_button(); ?>
+                </form>
 
-                    <?php if ($config_constants['WP_DEBUG_LOG'] && !empty($log_content)): ?>
-                        <h3>Debug Log</h3>
-                        <form method="post">
-                            <?php wp_nonce_field('twk_debugger_clear_log'); ?>
-                            <input type="submit" name="clear_debug_log" class="button button-secondary" value="Clear Log File" />
-                        </form>
-                        <div style="background: #fff; padding: 10px; margin-top: 10px; border: 1px solid #ccc; max-height: 400px; overflow-y: auto;">
-                            <pre><?php echo esc_html($log_content); ?></pre>
-                        </div>
-                    <?php endif; ?>
-
-                <?php } else { ?>
-                    <!-- Miscellaneous tab content -->
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row">Search Engine Visibility Notification</th>
-                            <td>
-                                <input type="checkbox" name="twk_debugger_se_visibility_notification" 
-                                       value="1" <?php checked(get_option('twk_debugger_se_visibility_notification'), 1); ?> />
-                                <p class="description">Show a notification in the admin bar when search engines are discouraged from indexing this site.</p>
-                            </td>
-                        </tr>
-                    </table>
-
-                    <?php submit_button(); ?>
-                <?php } ?>
-            </form>
+                <?php if ($config_constants['WP_DEBUG_LOG'] && !empty($log_content)): ?>
+                    <h3>Debug Log</h3>
+                    <form method="post">
+                        <?php wp_nonce_field('twk_debugger_clear_log'); ?>
+                        <input type="submit" name="clear_debug_log" class="button button-secondary" value="Clear Log File" />
+                    </form>
+                    <div style="background: #fff; padding: 10px; margin-top: 10px; border: 1px solid #ccc; max-height: 400px; overflow-y: auto;">
+                        <pre><?php echo esc_html($log_content); ?></pre>
+                    </div>
+                <?php endif;
+            } else { ?>
+                <form method="post" action="options.php">
+                    <?php
+                    settings_fields('twk_utils_misc_group');
+                    do_settings_sections($this->plugin_name . '_misc');
+                    submit_button();
+                    ?>
+                </form>
+            <?php } ?>
         </div>
         <?php
     }

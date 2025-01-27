@@ -1,6 +1,6 @@
-# TWK Debugger
+# TWK Utils
 
-A WordPress plugin that provides an easy-to-use interface for managing WordPress debug settings and site visibility notifications.
+A WordPress plugin that provides utility tools for managing WordPress debug settings and site visibility notifications.
 
 ## Features
 
@@ -20,7 +20,7 @@ A WordPress plugin that provides an easy-to-use interface for managing WordPress
 1. Download the plugin
 2. Upload to your WordPress site
 3. Activate the plugin through the 'Plugins' menu in WordPress
-4. Go to Settings > TWK Debugger to configure
+4. Go to Settings > TWK Utils to configure
 
 ## Requirements
 
@@ -31,14 +31,14 @@ A WordPress plugin that provides an easy-to-use interface for managing WordPress
 ## Usage
 
 ### Debug Settings
-1. Navigate to Settings > TWK Debugger
+1. Navigate to Settings > TWK Utils
 2. Select the DEBUG tab
 3. Toggle the desired debug options
 4. Save changes
 5. View debug log (if WP_DEBUG_LOG is enabled)
 
 ### Search Engine Visibility Notification
-1. Navigate to Settings > TWK Debugger
+1. Navigate to Settings > TWK Utils
 2. Select the Miscellaneous tab
 3. Enable "Search Engine Visibility Notification"
 4. When search engines are discouraged from indexing your site (Settings > Reading), a notification will appear in the admin bar

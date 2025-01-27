@@ -1,5 +1,5 @@
 <?php
-class Twk_Debugger_Loader {
+class Twk_Utils_Loader {
     protected $actions;
     protected $filters;
 
