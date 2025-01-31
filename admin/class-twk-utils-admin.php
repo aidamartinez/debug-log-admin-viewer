@@ -147,39 +147,44 @@ class Twk_Utils_Admin {
                 return $input;
             }
 
-            // Prepare the debug constants
-            $debug_constants = "/* TWK Utils Constants */\n";
+            // Remove any existing TWK Utils Constants section and its constants
+            $constants_marker = '/* TWK Utils Constants */';
+            $marker_pos = strpos($config_content, $constants_marker);
+            
+            if ($marker_pos !== false) {
+                // Find the end of our constants section
+                $next_section = strpos($config_content, '/*', $marker_pos + strlen($constants_marker));
+                if ($next_section === false) {
+                    $next_section = strlen($config_content);
+                }
+                
+                // Get content before and after our section
+                $before_section = rtrim(substr($config_content, 0, $marker_pos));
+                $after_section = ltrim(substr($config_content, $next_section));
+                
+                // Rebuild content with exactly two newlines between sections
+                $config_content = $before_section . "\n\n" . $after_section;
+            }
+
+            // Prepare the new constants section
+            $debug_constants = $constants_marker . "\n";
             $debug_constants .= "define( 'WP_DEBUG', " . (!empty($input['wp_debug']) ? 'true' : 'false') . " );\n";
             $debug_constants .= "define( 'WP_DEBUG_LOG', " . (!empty($input['wp_debug_log']) ? 'true' : 'false') . " );\n";
-            $debug_constants .= "define( 'WP_DEBUG_DISPLAY', " . (!empty($input['wp_debug_display']) ? 'true' : 'false') . " );\n\n";
-
-            // Regular expressions for each constant
-            $patterns = array(
-                '/\/\* TWK Utils Constants \*\/\n/',
-                '/define\s*\(\s*[\'"]WP_DEBUG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
-                '/define\s*\(\s*[\'"]WP_DEBUG_LOG[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i',
-                '/define\s*\(\s*[\'"]WP_DEBUG_DISPLAY[\'"]\s*,\s*(?:true|false)\s*\)\s*;/i'
-            );
-
-            // Remove existing debug constants if they exist
-            foreach ($patterns as $pattern) {
-                $config_content = preg_replace($pattern, '', $config_content);
-            }
+            $debug_constants .= "define( 'WP_DEBUG_DISPLAY', " . (!empty($input['wp_debug_display']) ? 'true' : 'false') . " );\n";
 
             // Find the position to insert the new constants
             $marker = "/* That's all, stop editing! Happy blogging. */";
             $pos = strpos($config_content, $marker);
 
             if ($pos !== false) {
-                $config_content = substr_replace(
-                    $config_content,
-                    $debug_constants . $marker,
-                    $pos,
-                    strlen($marker)
-                );
+                // Insert constants before the marker with exactly two newlines
+                $config_content = rtrim(substr($config_content, 0, $pos)) . "\n\n" 
+                    . $debug_constants . "\n" 
+                    . $marker 
+                    . substr($config_content, $pos + strlen($marker));
             } else {
-                // If marker not found, append to end of file
-                $config_content .= $debug_constants;
+                // If marker not found, append to end of file with proper spacing
+                $config_content = rtrim($config_content) . "\n\n" . $debug_constants;
             }
 
             // Write the modified content back to wp-config.php
@@ -346,5 +351,59 @@ class Twk_Utils_Admin {
         });
 
         return $backup_files;
+    }
+
+    /**
+     * Updates the wp-config.php file with a new constant.
+     *
+     * @param string $constant_name The constant name.
+     * @param mixed  $constant_value The constant value.
+     * @return bool True if successful, false otherwise.
+     */
+    private function update_wp_config( $constant_name, $constant_value ) {
+        $config_path = ABSPATH . 'wp-config.php';
+        $config_content = file_get_contents( $config_path );
+
+        if ( false === $config_content ) {
+            return false;
+        }
+
+        // Format the constant value
+        if ( is_bool( $constant_value ) ) {
+            $constant_value = $constant_value ? 'true' : 'false';
+        } elseif ( is_string( $constant_value ) ) {
+            $constant_value = "'" . addslashes( $constant_value ) . "'";
+        }
+
+        $constants_marker = '/* TWK Utils Constants */';
+        $constants_start = strpos( $config_content, $constants_marker );
+
+        if ( false === $constants_start ) {
+            // First constant being added
+            $config_content = rtrim( $config_content ) . "\n\n" . $constants_marker . "\n";
+            $config_content .= "define( '{$constant_name}', {$constant_value} );\n";
+        } else {
+            // Check if constant already exists
+            if ( false === strpos( $config_content, "define( '{$constant_name}'" ) ) {
+                // Get the content before and after the marker
+                $before_constants = substr( $config_content, 0, $constants_start );
+                $after_constants = substr( $config_content, $constants_start );
+
+                // Clean up any extra newlines before the marker
+                $before_constants = rtrim( $before_constants ) . "\n\n";
+
+                // Add the new constant definition right after the marker
+                $after_constants = preg_replace(
+                    '/(' . preg_quote( $constants_marker ) . ')\n/',
+                    "$1\ndefine( '{$constant_name}', {$constant_value} );\n",
+                    $after_constants,
+                    1
+                );
+
+                $config_content = $before_constants . $after_constants;
+            }
+        }
+
+        return file_put_contents( $config_path, $config_content ) !== false;
     }
 } 
