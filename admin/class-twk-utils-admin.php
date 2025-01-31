@@ -180,6 +180,7 @@ class Twk_Utils_Admin {
 	public function validate_settings( $input ) {
 		$current_constants = $this->get_config_constants();
 		$settings_changed = false;
+		$debug_info = array(); // Array to store debug information
 		
 		// Ensure input is an array.
 		$input = is_array( $input ) ? $input : array();
@@ -193,73 +194,163 @@ class Twk_Utils_Admin {
 			$settings_changed = true;
 		}
 
-		// Only proceed with backup and wp-config modification if debug settings changed.
 		if ( $settings_changed ) {
+			// Store initial state
+			$debug_info['initial_perms'] = substr(sprintf('%o', fileperms($this->wp_config_path)), -4);
+			$debug_info['is_writable'] = is_writable($this->wp_config_path);
+			$debug_info['file_owner'] = fileowner($this->wp_config_path);
+			$debug_info['php_user'] = getmyuid();
+
+			// Check if wp-config.php exists and is writable
+			if ( ! $this->wp_config_path || ! file_exists( $this->wp_config_path ) ) {
+				error_log('TWK Utils: wp-config.php not found at: ' . $this->wp_config_path);
+				add_settings_error(
+					$this->plugin_name,
+					'wp_config_not_found',
+					'wp-config.php file not found. Debug info: ' . json_encode($debug_info),
+					'error'
+				);
+				return $input;
+			}
+
+			// Try to make the file writable if it isn't already
+			$original_perms = null;
+			if ( ! is_writable( $this->wp_config_path ) ) {
+				$original_perms = fileperms( $this->wp_config_path );
+				$debug_info['original_perms'] = substr(sprintf('%o', $original_perms), -4);
+				
+				// Try to modify permissions
+				if ( ! @chmod( $this->wp_config_path, 0644 ) ) {
+					error_log('TWK Utils: Failed to modify wp-config.php permissions');
+					add_settings_error(
+						$this->plugin_name,
+						'wp_config_not_writable',
+						'Cannot modify wp-config.php permissions. Debug info: ' . json_encode($debug_info),
+						'error'
+					);
+					return $input;
+				}
+				$debug_info['modified_perms'] = '0644';
+			}
+
+			// Create backup
 			$backup_path = $this->create_backup();
 			if ( ! $backup_path ) {
+				if ( $original_perms !== null ) {
+					@chmod( $this->wp_config_path, $original_perms );
+				}
+				error_log('TWK Utils: Failed to create backup');
 				add_settings_error(
 					$this->plugin_name,
 					'backup_failed',
-					'Could not create backup of wp-config.php file.',
+					'Could not create backup. Debug info: ' . json_encode($debug_info),
 					'error'
 				);
 				return $input;
 			}
 
-			$config_content = file_get_contents( $this->wp_config_path );
+			// Read current content
+			$config_content = @file_get_contents( $this->wp_config_path );
 			if ( false === $config_content ) {
+				if ( $original_perms !== null ) {
+					@chmod( $this->wp_config_path, $original_perms );
+				}
+				error_log('TWK Utils: Failed to read wp-config.php');
 				add_settings_error(
 					$this->plugin_name,
 					'wp_config_not_readable',
-					'Could not read wp-config.php file.',
+					'Could not read wp-config.php. Debug info: ' . json_encode($debug_info),
 					'error'
 				);
 				return $input;
 			}
 
-			// Remove any existing TWK Utils Constants section.
-			$constants_marker = '/* TWK Utils Constants */';
-			$marker_pos      = strpos( $config_content, $constants_marker );
-			
-			if ( false !== $marker_pos ) {
-				$next_section = strpos( $config_content, '/*', $marker_pos + strlen( $constants_marker ) );
-				if ( false === $next_section ) {
-					$next_section = strlen( $config_content );
-				}
-				
-				$before_section = rtrim( substr( $config_content, 0, $marker_pos ) );
-				$after_section  = ltrim( substr( $config_content, $next_section ) );
-				
-				$config_content = $before_section . "\n\n" . $after_section;
+			// Store original content length for verification
+			$debug_info['original_content_length'] = strlen($config_content);
+
+			// Prepare new constants
+			$new_constants = array(
+				'WP_DEBUG' => ! empty( $input['wp_debug'] ),
+				'WP_DEBUG_LOG' => ! empty( $input['wp_debug_log'] ),
+				'WP_DEBUG_DISPLAY' => ! empty( $input['wp_debug_display'] )
+			);
+
+			// Remove any existing TWK Utils Constants block
+			$config_content = preg_replace(
+				'/\/\* TWK Utils Debug Constants \*\/\n.*?\n\n/s',
+				'',
+				$config_content
+			);
+
+			// Remove any existing debug constants
+			foreach ( array_keys( $new_constants ) as $constant ) {
+				$config_content = preg_replace(
+					"/define\s*\(\s*['\"]" . $constant . "['\"]\s*,\s*(true|false)\s*\);\n?/i",
+					'',
+					$config_content
+				);
 			}
 
-			// Prepare the new constants section.
-			$debug_constants  = $constants_marker . "\n";
-			$debug_constants .= "define( 'WP_DEBUG', " . ( ! empty( $input['wp_debug'] ) ? 'true' : 'false' ) . " );\n";
-			$debug_constants .= "define( 'WP_DEBUG_LOG', " . ( ! empty( $input['wp_debug_log'] ) ? 'true' : 'false' ) . " );\n";
-			$debug_constants .= "define( 'WP_DEBUG_DISPLAY', " . ( ! empty( $input['wp_debug_display'] ) ? 'true' : 'false' ) . " );\n";
+			// Clean up any multiple blank lines created by removals
+			$config_content = preg_replace("/\n{3,}/", "\n\n", $config_content);
 
-			// Find position to insert new constants.
+			// Create new constants block
+			$constants_block = array();
+			foreach ( $new_constants as $name => $value ) {
+				$constants_block[] = "define( '" . $name . "', " . ($value ? 'true' : 'false') . " );";
+			}
+			$constants_block = "/* TWK Utils Debug Constants */\n" . implode("\n", $constants_block) . "\n\n";
+
+			// Add new constants before the "stop editing" line
 			$marker = "/* That's all, stop editing! Happy blogging. */";
-			$pos    = strpos( $config_content, $marker );
-
+			$pos = strpos( $config_content, $marker );
 			if ( false !== $pos ) {
-				$config_content = rtrim( substr( $config_content, 0, $pos ) ) . "\n\n" 
-					. $debug_constants . "\n" 
-					. $marker 
-					. substr( $config_content, $pos + strlen( $marker ) );
+				$config_content = substr_replace( $config_content, $constants_block, $pos, 0 );
 			} else {
-				$config_content = rtrim( $config_content ) . "\n\n" . $debug_constants;
+				// If marker not found, add at the end of the file
+				$config_content = rtrim($config_content) . "\n\n" . $constants_block;
 			}
 
-			if ( false === file_put_contents( $this->wp_config_path, $config_content ) ) {
+			// Store new content length
+			$debug_info['new_content_length'] = strlen($config_content);
+
+			// Write the modified content
+			if ( false === @file_put_contents( $this->wp_config_path, $config_content ) ) {
+				if ( $original_perms !== null ) {
+					@chmod( $this->wp_config_path, $original_perms );
+				}
+				error_log('TWK Utils: Failed to write to wp-config.php');
 				add_settings_error(
 					$this->plugin_name,
 					'wp_config_not_writable',
-					'Could not update wp-config.php file. Please check file permissions.',
+					'Could not write to wp-config.php. Debug info: ' . json_encode($debug_info),
 					'error'
 				);
 				return $input;
+			}
+
+			// Verify the changes
+			$new_constants = $this->get_config_constants();
+			$debug_info['final_constants'] = $new_constants;
+
+			if (
+				$new_constants['WP_DEBUG'] !== ! empty( $input['wp_debug'] ) ||
+				$new_constants['WP_DEBUG_LOG'] !== ! empty( $input['wp_debug_log'] ) ||
+				$new_constants['WP_DEBUG_DISPLAY'] !== ! empty( $input['wp_debug_display'] )
+			) {
+				error_log('TWK Utils: Constants verification failed. Debug info: ' . json_encode($debug_info));
+				add_settings_error(
+					$this->plugin_name,
+					'settings_not_updated',
+					'Settings verification failed. Debug info: ' . json_encode($debug_info),
+					'error'
+				);
+				return $input;
+			}
+
+			// Restore original permissions
+			if ( $original_perms !== null ) {
+				@chmod( $this->wp_config_path, $original_perms );
 			}
 
 			add_settings_error(
