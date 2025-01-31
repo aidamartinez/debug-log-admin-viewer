@@ -595,10 +595,10 @@ class Twk_Utils_Admin {
 				continue;
 			}
 
-			// Check if line starts with a timestamp
+			// Check if line starts with a timestamp.
 			$pattern = '/^\[(.+?)\]\s(.+)$/';
 			if ( preg_match( $pattern, $line, $matches ) ) {
-				// If we have a previous entry, save it
+				// If we have a previous entry, save it.
 				if ( $current_entry ) {
 					$entries[] = $current_entry;
 				}
@@ -619,16 +619,16 @@ class Twk_Utils_Admin {
 				strpos( $line, '#' ) === 0 ||
 				strpos( $line, 'thrown in' ) !== false
 			) ) {
-				// Append stack trace to current entry
+				// Append stack trace to current entry.
 				$current_entry['message'] .= "\n" . $line;
 				$current_entry['full_message'] .= "\n" . $line;
 			} else {
-				// If we have a previous entry, save it
+				// If we have a previous entry, save it.
 				if ( $current_entry ) {
 					$entries[] = $current_entry;
 				}
 				
-				// Create new entry for unknown format
+				// Create new entry for unknown format.
 				$current_entry = array(
 					'timestamp' => '',
 					'message'   => $line,
@@ -639,7 +639,7 @@ class Twk_Utils_Admin {
 			}
 		}
 		
-		// Add the last entry if exists
+		// Add the last entry if exists.
 		if ( $current_entry ) {
 			$entries[] = $current_entry;
 		}
@@ -715,12 +715,12 @@ class Twk_Utils_Admin {
 			'unknown'    => __( 'Other', 'twk-utils' ),
 		);
 
-		// Pagination settings
+		// Pagination settings.
 		$entries_per_page = 100;
-		$current_page = isset( $_GET['log_page'] ) ? max( 1, intval( $_GET['log_page'] ) ) : 1;
-		$total_pages = ceil( count( $entries ) / $entries_per_page );
-		$offset = ( $current_page - 1 ) * $entries_per_page;
-		$paged_entries = array_slice( $entries, $offset, $entries_per_page );
+		$current_page     = isset( $_GET['log_page'] ) ? max( 1, intval( $_GET['log_page'] ) ) : 1;
+		$total_pages      = ceil( count( $entries ) / $entries_per_page );
+		$offset           = ( $current_page - 1 ) * $entries_per_page;
+		$paged_entries    = array_slice( $entries, $offset, $entries_per_page );
 		?>
 		<div class="debug-log-viewer">
 			<div class="debug-log-controls">
@@ -748,7 +748,7 @@ class Twk_Utils_Admin {
 					<?php foreach ( $paged_entries as $entry ) : ?>
 						<div class="log-entry <?php echo esc_attr( $entry['class'] ); ?>">
 							<?php
-							// Split message into main error and stack trace
+							// Split message into main error and stack trace.
 							$message_parts = $this->split_error_and_stack_trace( $entry['message'] );
 							?>
 							<pre class="log-message">
@@ -774,7 +774,7 @@ class Twk_Utils_Admin {
 					<?php if ( $total_pages > 1 ) : ?>
 						<div class="debug-log-pagination">
 							<?php
-							// Previous page
+							// Previous page.
 							if ( $current_page > 1 ) :
 								$prev_url = add_query_arg( 'log_page', $current_page - 1 );
 								?>
@@ -793,7 +793,7 @@ class Twk_Utils_Admin {
 							</span>
 
 							<?php
-							// Next page
+							// Next page.
 							if ( $current_page < $total_pages ) :
 								$next_url = add_query_arg( 'log_page', $current_page + 1 );
 								?>
@@ -815,7 +815,7 @@ class Twk_Utils_Admin {
 	 */
 	private function split_error_and_stack_trace( $message ) {
 		$parts = array(
-			'error' => '',
+			'error'       => '',
 			'stack_trace' => '',
 		);
 
@@ -834,10 +834,10 @@ class Twk_Utils_Admin {
 	 * Register the stylesheets and JavaScript for the admin area.
 	 */
 	public function enqueue_admin_scripts() {
-		// Get current screen
+		// Get current screen.
 		$screen = get_current_screen();
-		
-		// Check if we're on the settings page for this plugin
+
+		// Check if we're on the settings page for this plugin.
 		if ( $screen && $screen->id === 'settings_page_twk-utils' ) {
 			wp_enqueue_style( 'dashicons' );
 			wp_enqueue_style(

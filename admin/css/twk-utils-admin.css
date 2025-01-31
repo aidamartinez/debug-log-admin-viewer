@@ -49,10 +49,6 @@
 	font-weight: bold;
 }
 
-.debug-log-entries {
-	max-height: 1500px;
-	overflow-y: auto;
-}
 
 .log-entry {
 	margin: 5px 0;
