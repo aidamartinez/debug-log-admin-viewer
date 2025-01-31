@@ -15,24 +15,27 @@ jQuery(function($) {
 			}, 1500);
 		});
 
-		// Search functionality
-		var searchTimeout;
+		// Handle filter changes
+		$('.log-filter').on('change', function() {
+			var activeFilters = [];
+			$('.log-filter:checked').each(function() {
+				activeFilters.push($(this).data('type'));
+			});
+			
+			// Update URL with new filters
+			var newUrl = new URL(window.location.href);
+			newUrl.searchParams.set('filters', activeFilters.join(','));
+			newUrl.searchParams.set('log_page', '1'); // Reset to first page
+			window.location.href = newUrl.toString();
+		});
+
+		// Handle log search
 		$('#log-search').on('input', function() {
-			clearTimeout(searchTimeout);
 			var searchTerm = $(this).val().toLowerCase();
-
-			searchTimeout = setTimeout(function() {
-				$('.log-entry').each(function() {
-					var $entry = $(this);
-					var entryText = $entry.text().toLowerCase();
-					var matchesSearch = searchTerm === '' || entryText.includes(searchTerm);
-					var isVisible = !$entry.hasClass('hidden');
-
-					// Only show entries that match both search and filter
-					$entry.toggleClass('search-hidden', !matchesSearch);
-					$entry.toggle(matchesSearch && isVisible);
-				});
-			}, 300);
+			$('.log-entry').each(function() {
+				var entryText = $(this).text().toLowerCase();
+				$(this).toggle(entryText.includes(searchTerm));
+			});
 		});
 
 		// Filter functionality

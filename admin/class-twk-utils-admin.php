@@ -715,12 +715,26 @@ class Twk_Utils_Admin {
 			'unknown'    => __( 'Other', 'twk-utils' ),
 		);
 
-		// Pagination settings.
+		// Get active filters from URL
+		$active_filters = isset( $_GET['filters'] ) ? explode(',', sanitize_text_field( wp_unslash( $_GET['filters'] ) ) ) : array_keys($error_types);
+		
+		// Filter entries based on active filters
+		$filtered_entries = array_filter($entries, function($entry) use ($active_filters) {
+			foreach ($active_filters as $filter) {
+				if ($entry['class'] === 'log-' . $filter) {
+					return true;
+				}
+			}
+			return false;
+		});
+
+		// Pagination settings
 		$entries_per_page = 100;
 		$current_page     = isset( $_GET['log_page'] ) ? max( 1, intval( $_GET['log_page'] ) ) : 1;
-		$total_pages      = ceil( count( $entries ) / $entries_per_page );
+		$total_pages      = ceil( count( $filtered_entries ) / $entries_per_page );
 		$offset           = ( $current_page - 1 ) * $entries_per_page;
-		$paged_entries    = array_slice( $entries, $offset, $entries_per_page );
+		$paged_entries    = array_slice( $filtered_entries, $offset, $entries_per_page );
+
 		?>
 		<div class="debug-log-viewer">
 			<div class="debug-log-controls">
@@ -732,8 +746,8 @@ class Twk_Utils_Admin {
 						<label>
 							<input type="checkbox" 
 								class="log-filter" 
-								data-type="log-<?php echo esc_attr( $type ); ?>" 
-								checked="checked"
+								data-type="<?php echo esc_attr( $type ); ?>" 
+								<?php checked( in_array( $type, $active_filters, true ) ); ?>
 							/>
 							<?php echo esc_html( $label ); ?>
 						</label>
@@ -741,10 +755,10 @@ class Twk_Utils_Admin {
 				</div>
 			</div>
 
-			<div class="debug-log-entries">
-				<?php if ( empty( $entries ) ) : ?>
-					<p><?php esc_html_e( 'No log entries found.', 'twk-utils' ); ?></p>
-				<?php else : ?>
+			<?php if ( empty( $filtered_entries ) ) : ?>
+				<p><?php esc_html_e( 'No log entries found matching the selected filters.', 'twk-utils' ); ?></p>
+			<?php else : ?>
+				<div class="debug-log-entries">
 					<?php foreach ( $paged_entries as $entry ) : ?>
 						<div class="log-entry <?php echo esc_attr( $entry['class'] ); ?>">
 							<?php
@@ -774,9 +788,14 @@ class Twk_Utils_Admin {
 					<?php if ( $total_pages > 1 ) : ?>
 						<div class="debug-log-pagination">
 							<?php
-							// Previous page.
+							$base_url = remove_query_arg( array( 'log_page', 'filters' ) );
+							
+							// Previous page
 							if ( $current_page > 1 ) :
-								$prev_url = add_query_arg( 'log_page', $current_page - 1 );
+								$prev_url = add_query_arg( array(
+									'log_page' => $current_page - 1,
+									'filters' => implode(',', $active_filters)
+								), $base_url );
 								?>
 								<a href="<?php echo esc_url( $prev_url ); ?>" class="button">&laquo; <?php esc_html_e( 'Previous', 'twk-utils' ); ?></a>
 							<?php endif; ?>
@@ -793,16 +812,19 @@ class Twk_Utils_Admin {
 							</span>
 
 							<?php
-							// Next page.
+							// Next page
 							if ( $current_page < $total_pages ) :
-								$next_url = add_query_arg( 'log_page', $current_page + 1 );
+								$next_url = add_query_arg( array(
+									'log_page' => $current_page + 1,
+									'filters' => implode(',', $active_filters)
+								), $base_url );
 								?>
 								<a href="<?php echo esc_url( $next_url ); ?>" class="button"><?php esc_html_e( 'Next', 'twk-utils' ); ?> &raquo;</a>
 							<?php endif; ?>
 						</div>
 					<?php endif; ?>
-				<?php endif; ?>
-			</div>
+				</div>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
