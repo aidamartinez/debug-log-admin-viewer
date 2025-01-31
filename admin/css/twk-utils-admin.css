@@ -7,4 +7,183 @@
 #wpadminbar #wp-admin-bar-twk-se-visibility-notice .ab-item,
 #wpadminbar #wp-admin-bar-twk-se-visibility-notice:hover .ab-item {
     color: #ffffff !important;
+}
+
+.debug-log-viewer {
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	padding: 20px;
+	margin: 20px 0;
+}
+
+.debug-log-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin-bottom: 15px;
+	padding: 15px;
+	background: #f5f5f5;
+	border: 1px solid #e5e5e5;
+}
+
+.debug-log-filters label {
+	display: flex;
+	align-items: center;
+	margin: 0;
+	padding: 5px 10px;
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.debug-log-filters label:hover {
+	background: #f8f8f8;
+}
+
+.debug-log-filters input[type="checkbox"] {
+	margin-right: 5px;
+}
+
+.log-filter-all {
+	font-weight: bold;
+}
+
+.debug-log-entries {
+	max-height: 1500px;
+	overflow-y: auto;
+}
+
+.log-entry {
+	margin: 5px 0;
+	padding: 10px;
+	border-radius: 3px;
+	position: relative;
+}
+
+.log-message {
+	margin: 0;
+	white-space: normal;
+	font-family: monospace;
+	background-color: transparent;
+	border: 0;
+	padding-right: 50px; /* Make room for the copy button */
+}
+
+/* Error type colors */
+.log-fatal {
+	background-color: #ffd7d7;
+	border-left: 4px solid #dc3232;
+}
+
+.log-parse {
+	background-color: #ffe1e1;
+	border-left: 4px solid #e53935;
+}
+
+.log-database {
+	background-color: #ffeaea;
+	border-left: 4px solid #b71c1c;
+}
+
+.log-warning {
+	background-color: #fff8e5;
+	border-left: 4px solid #ffb900;
+}
+
+.log-deprecated {
+	background-color: #f8f8f8;
+	border-left: 4px solid #82878c;
+}
+
+.log-strict {
+	background-color: #e5f5fa;
+	border-left: 4px solid #00a0d2;
+}
+
+.log-notice {
+	background-color: #f7fcfe;
+	border-left: 4px solid #00a0d2;
+}
+
+.log-unknown {
+	background-color: #f8f8f8;
+	border-left: 4px solid #ccd0d4;
+}
+
+/* Hidden entries */
+.log-entry.hidden {
+	display: none !important;
+}
+
+.debug-log-controls {
+    margin-bottom: 20px;
+}
+
+.debug-log-search {
+    margin-bottom: 15px;
+}
+
+.debug-log-search input {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.copy-log {
+	position: absolute !important;
+	right: 11px;
+	top: 11px;
+	padding: 2px 8px !important;
+	height: auto !important;
+	border-color: transparent !important;
+}
+
+.copy-log .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	vertical-align: text-bottom;
+}
+
+.copy-log.copied {
+	background-color: #46b450 !important;
+	border-color: #46b450 !important;
+	color: #fff !important;
+}
+
+.debug-log-pagination {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #ddd;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+}
+
+.debug-log-pagination-info {
+    margin: 0 10px;
+}
+
+.log-entry.search-hidden,
+.log-entry.hidden {
+    display: none !important;
+}
+
+/* Remove the old header styles */
+.log-entry-header {
+	display: none;
+}
+
+.stack-trace {
+	margin: 5px 0 0;
+	padding: 10px;
+	background: rgba(0, 0, 0, 0.03);
+	border-radius: 3px;
+	font-family: monospace;
+	white-space: pre-wrap;
+	font-size: 12px;
 } 

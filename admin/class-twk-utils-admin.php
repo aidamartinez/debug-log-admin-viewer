@@ -67,6 +67,9 @@ class Twk_Utils_Admin {
 			// Create index.php for extra security.
 			file_put_contents( $this->backup_dir . '/index.php', '<?php // Silence is golden' );
 		}
+
+		// Add these lines to hook the enqueue function
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
 	}
 
 	/**
@@ -454,9 +457,7 @@ class Twk_Utils_Admin {
 						<input type="submit" name="clear_debug_log" class="button button-secondary" 
 							value="<?php esc_attr_e( 'Clear Log File', 'twk-utils' ); ?>" />
 					</form>
-					<div class="debug-log-viewer">
-						<pre><?php echo esc_html( $log_content ); ?></pre>
-					</div>
+					<?php $this->display_debug_log_viewer( $log_content ); ?>
 				<?php endif;
 			else : ?>
 				<form method="post" action="options.php">
@@ -576,5 +577,292 @@ class Twk_Utils_Admin {
 		}
 
 		return false !== file_put_contents( $config_path, $config_content );
+	}
+
+	/**
+	 * Parse debug log content and categorize errors.
+	 *
+	 * @param string $log_content Raw log content.
+	 * @return array Categorized log entries.
+	 */
+	private function parse_debug_log( $log_content ) {
+		$entries = array();
+		$lines = explode( "\n", $log_content );
+		$current_entry = null;
+		
+		foreach ( $lines as $line ) {
+			if ( empty( trim( $line ) ) ) {
+				continue;
+			}
+
+			// Check if line starts with a timestamp
+			$pattern = '/^\[(.+?)\]\s(.+)$/';
+			if ( preg_match( $pattern, $line, $matches ) ) {
+				// If we have a previous entry, save it
+				if ( $current_entry ) {
+					$entries[] = $current_entry;
+				}
+				
+				// Start new entry
+				$timestamp = $matches[1];
+				$message = $matches[2];
+				
+				$current_entry = array(
+					'timestamp' => $timestamp,
+					'message'   => $message,
+					'full_message' => $line,
+					'type'      => $this->determine_error_type($message),
+					'class'     => $this->determine_error_class($message),
+				);
+			} elseif ( $current_entry && (
+				strpos( $line, 'Stack trace:' ) === 0 ||
+				strpos( $line, '#' ) === 0 ||
+				strpos( $line, 'thrown in' ) !== false
+			) ) {
+				// Append stack trace to current entry
+				$current_entry['message'] .= "\n" . $line;
+				$current_entry['full_message'] .= "\n" . $line;
+			} else {
+				// If we have a previous entry, save it
+				if ( $current_entry ) {
+					$entries[] = $current_entry;
+				}
+				
+				// Create new entry for unknown format
+				$current_entry = array(
+					'timestamp' => '',
+					'message'   => $line,
+					'full_message' => $line,
+					'type'      => 'Unknown',
+					'class'     => 'log-unknown',
+				);
+			}
+		}
+		
+		// Add the last entry if exists
+		if ( $current_entry ) {
+			$entries[] = $current_entry;
+		}
+
+		return $entries;
+	}
+
+	/**
+	 * Determine error type from message.
+	 *
+	 * @param string $message The error message.
+	 * @return string The error type.
+	 */
+	private function determine_error_type( $message ) {
+		if ( stripos( $message, 'Fatal error' ) !== false || stripos( $message, 'E_ERROR' ) !== false ) {
+			return 'Fatal Error';
+		} elseif ( stripos( $message, 'Parse error' ) !== false || stripos( $message, 'E_PARSE' ) !== false ) {
+			return 'Parse Error';
+		} elseif ( stripos( $message, 'Database error' ) !== false || stripos( $message, 'MySQL' ) !== false ) {
+			return 'Database Error';
+		} elseif ( stripos( $message, 'Warning' ) !== false || stripos( $message, 'E_WARNING' ) !== false ) {
+			return 'Warning';
+		} elseif ( stripos( $message, 'Deprecated' ) !== false || stripos( $message, 'E_DEPRECATED' ) !== false ) {
+			return 'Deprecated';
+		} elseif ( stripos( $message, 'Strict Standards' ) !== false || stripos( $message, 'E_STRICT' ) !== false ) {
+			return 'Strict Standards';
+		} elseif ( stripos( $message, 'Notice' ) !== false || stripos( $message, 'E_NOTICE' ) !== false ) {
+			return 'Notice';
+		}
+		return 'Unknown';
+	}
+
+	/**
+	 * Determine error class from message.
+	 *
+	 * @param string $message The error message.
+	 * @return string The error class.
+	 */
+	private function determine_error_class( $message ) {
+		if ( stripos( $message, 'Fatal error' ) !== false || stripos( $message, 'E_ERROR' ) !== false ) {
+			return 'log-fatal';
+		} elseif ( stripos( $message, 'Parse error' ) !== false || stripos( $message, 'E_PARSE' ) !== false ) {
+			return 'log-parse';
+		} elseif ( stripos( $message, 'Database error' ) !== false || stripos( $message, 'MySQL' ) !== false ) {
+			return 'log-database';
+		} elseif ( stripos( $message, 'Warning' ) !== false || stripos( $message, 'E_WARNING' ) !== false ) {
+			return 'log-warning';
+		} elseif ( stripos( $message, 'Deprecated' ) !== false || stripos( $message, 'E_DEPRECATED' ) !== false ) {
+			return 'log-deprecated';
+		} elseif ( stripos( $message, 'Strict Standards' ) !== false || stripos( $message, 'E_STRICT' ) !== false ) {
+			return 'log-strict';
+		} elseif ( stripos( $message, 'Notice' ) !== false || stripos( $message, 'E_NOTICE' ) !== false ) {
+			return 'log-notice';
+		}
+		return 'log-unknown';
+	}
+
+	/**
+	 * Display the debug log viewer.
+	 *
+	 * @param string $log_content Raw log content.
+	 */
+	private function display_debug_log_viewer( $log_content ) {
+		$entries = $this->parse_debug_log( $log_content );
+		$error_types = array(
+			'fatal'      => __( 'Fatal Errors', 'twk-utils' ),
+			'parse'      => __( 'Parse Errors', 'twk-utils' ),
+			'database'   => __( 'Database Errors', 'twk-utils' ),
+			'warning'    => __( 'Warnings', 'twk-utils' ),
+			'deprecated' => __( 'Deprecated', 'twk-utils' ),
+			'strict'     => __( 'Strict Standards', 'twk-utils' ),
+			'notice'     => __( 'Notices', 'twk-utils' ),
+			'unknown'    => __( 'Other', 'twk-utils' ),
+		);
+
+		// Pagination settings
+		$entries_per_page = 100;
+		$current_page = isset( $_GET['log_page'] ) ? max( 1, intval( $_GET['log_page'] ) ) : 1;
+		$total_pages = ceil( count( $entries ) / $entries_per_page );
+		$offset = ( $current_page - 1 ) * $entries_per_page;
+		$paged_entries = array_slice( $entries, $offset, $entries_per_page );
+		?>
+		<div class="debug-log-viewer">
+			<div class="debug-log-controls">
+				<div class="debug-log-search">
+					<input type="text" id="log-search" placeholder="<?php esc_attr_e( 'Search log entries...', 'twk-utils' ); ?>" />
+				</div>
+				<div class="debug-log-filters">
+					<?php foreach ( $error_types as $type => $label ) : ?>
+						<label>
+							<input type="checkbox" 
+								class="log-filter" 
+								data-type="log-<?php echo esc_attr( $type ); ?>" 
+								checked="checked"
+							/>
+							<?php echo esc_html( $label ); ?>
+						</label>
+					<?php endforeach; ?>
+				</div>
+			</div>
+
+			<div class="debug-log-entries">
+				<?php if ( empty( $entries ) ) : ?>
+					<p><?php esc_html_e( 'No log entries found.', 'twk-utils' ); ?></p>
+				<?php else : ?>
+					<?php foreach ( $paged_entries as $entry ) : ?>
+						<div class="log-entry <?php echo esc_attr( $entry['class'] ); ?>">
+							<?php
+							// Split message into main error and stack trace
+							$message_parts = $this->split_error_and_stack_trace( $entry['message'] );
+							?>
+							<pre class="log-message">
+								<?php if ( ! empty( $entry['timestamp'] ) ) : ?>
+									<strong>[<?php echo esc_html( $entry['timestamp'] ); ?>]</strong>
+								<?php endif; ?>
+								<?php if ( ! empty( $entry['type'] ) ) : ?>
+									<strong><?php echo esc_html( $entry['type'] ); ?>:</strong>
+								<?php endif; ?>
+								<?php echo esc_html( $message_parts['error'] ); ?>
+							</pre>
+							<?php if ( ! empty( $message_parts['stack_trace'] ) ) : ?>
+								<pre class="stack-trace"><?php echo esc_html( $message_parts['stack_trace'] ); ?></pre>
+							<?php endif; ?>
+							<button class="copy-log button button-small" 
+								data-clipboard-text="<?php echo esc_attr( $entry['message'] ); ?>"
+								title="<?php esc_attr_e( 'Copy to clipboard', 'twk-utils' ); ?>">
+								<span class="dashicons dashicons-clipboard"></span>
+							</button>
+						</div>
+					<?php endforeach; ?>
+
+					<?php if ( $total_pages > 1 ) : ?>
+						<div class="debug-log-pagination">
+							<?php
+							// Previous page
+							if ( $current_page > 1 ) :
+								$prev_url = add_query_arg( 'log_page', $current_page - 1 );
+								?>
+								<a href="<?php echo esc_url( $prev_url ); ?>" class="button">&laquo; <?php esc_html_e( 'Previous', 'twk-utils' ); ?></a>
+							<?php endif; ?>
+
+							<span class="debug-log-pagination-info">
+								<?php
+								printf(
+									/* translators: 1: Current page, 2: Total pages */
+									esc_html__( 'Page %1$s of %2$s', 'twk-utils' ),
+									$current_page,
+									$total_pages
+								);
+								?>
+							</span>
+
+							<?php
+							// Next page
+							if ( $current_page < $total_pages ) :
+								$next_url = add_query_arg( 'log_page', $current_page + 1 );
+								?>
+								<a href="<?php echo esc_url( $next_url ); ?>" class="button"><?php esc_html_e( 'Next', 'twk-utils' ); ?> &raquo;</a>
+							<?php endif; ?>
+						</div>
+					<?php endif; ?>
+				<?php endif; ?>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Split error message and stack trace.
+	 *
+	 * @param string $message The full error message.
+	 * @return array Array with error and stack_trace parts.
+	 */
+	private function split_error_and_stack_trace( $message ) {
+		$parts = array(
+			'error' => '',
+			'stack_trace' => '',
+		);
+
+		if ( strpos( $message, 'Stack trace:' ) !== false ) {
+			$split = explode( 'Stack trace:', $message, 2 );
+			$parts['error'] = $split[0];
+			$parts['stack_trace'] = 'Stack trace:' . $split[1];
+		} else {
+			$parts['error'] = $message;
+		}
+
+		return $parts;
+	}
+
+	/**
+	 * Register the stylesheets and JavaScript for the admin area.
+	 */
+	public function enqueue_admin_scripts() {
+		// Get current screen
+		$screen = get_current_screen();
+		
+		// Check if we're on the settings page for this plugin
+		if ( $screen && $screen->id === 'settings_page_twk-utils' ) {
+			wp_enqueue_style( 'dashicons' );
+			wp_enqueue_style(
+				$this->plugin_name,
+				plugin_dir_url( __FILE__ ) . 'css/twk-utils-admin.css',
+				array(),
+				$this->version,
+				'all'
+			);
+
+			wp_enqueue_script(
+				'clipboard',
+				'https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.8/clipboard.min.js',
+				array(),
+				'2.0.8',
+				true
+			);
+
+			wp_enqueue_script(
+				$this->plugin_name,
+				plugin_dir_url( __FILE__ ) . 'js/twk-utils-admin.js',
+				array( 'jquery', 'clipboard' ),
+				$this->version,
+				true
+			);
+		}
 	}
 }
