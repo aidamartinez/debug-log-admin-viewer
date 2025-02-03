@@ -2,8 +2,10 @@
 /**
  * The admin-specific functionality of the plugin.
  *
- * @package    TWK_Utils
- * @subpackage TWK_Utils/admin
+ * @since      1.0.0
+ *
+ * @package    Twk_Utils
+ * @subpackage Twk_Utils/admin
  */
 
 class Twk_Utils_Admin {
@@ -154,22 +156,12 @@ class Twk_Utils_Admin {
 	 * Register plugin settings.
 	 */
 	public function register_settings() {
-		// Debug settings.
+		// Only register debug settings
 		register_setting(
 			'twk_utils_debug_group',
 			'twk_utils_debug_settings',
 			array(
 				'sanitize_callback' => array( $this, 'validate_settings' ),
-			)
-		);
-
-		// SE Visibility notification setting.
-		register_setting(
-			$this->plugin_name,
-			'twk_utils_se_visibility_notification',
-			array(
-				'type'    => 'boolean',
-				'default' => false,
 			)
 		);
 	}
@@ -398,75 +390,54 @@ class Twk_Utils_Admin {
 		<div class="wrap">
 			<h2><?php esc_html_e( 'TWK Utils Settings', 'twk-utils' ); ?></h2>
 
-			<h2 class="nav-tab-wrapper">
-				<a href="?page=<?php echo esc_attr( $this->plugin_name ); ?>&tab=debug" 
-					class="nav-tab <?php echo $active_tab === 'debug' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'DEBUG', 'twk-utils' ); ?>
-				</a>
-				<a href="?page=<?php echo esc_attr( $this->plugin_name ); ?>&tab=misc" 
-					class="nav-tab <?php echo $active_tab === 'misc' ? 'nav-tab-active' : ''; ?>">
-					<?php esc_html_e( 'Miscellaneous', 'twk-utils' ); ?>
-				</a>
-			</h2>
-
 			<?php if ( ! $config_writable ) : ?>
 				<div class="notice notice-error">
 					<p><?php esc_html_e( 'Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.', 'twk-utils' ); ?></p>
 				</div>
-			<?php endif; 
+			<?php endif; ?>
 
-			if ( 'debug' === $active_tab ) : ?>
-				<form method="post" action="options.php">
-					<?php
-					settings_fields( 'twk_utils_debug_group' );
-					?>
-					<table class="form-table" role="presentation">
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG', 'twk-utils' ); ?></th>
-							<td>
-								<input type="checkbox" name="twk_utils_debug_settings[wp_debug]" 
-									value="1" <?php checked( $config_constants['WP_DEBUG'], true ); ?> />
-								<p class="description"><?php esc_html_e( 'Enables WordPress debug mode', 'twk-utils' ); ?></p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_LOG', 'twk-utils' ); ?></th>
-							<td>
-								<input type="checkbox" name="twk_utils_debug_settings[wp_debug_log]" 
-									value="1" <?php checked( $config_constants['WP_DEBUG_LOG'], true ); ?> />
-								<p class="description"><?php esc_html_e( 'Saves debug messages to wp-content/debug.log', 'twk-utils' ); ?></p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_DISPLAY', 'twk-utils' ); ?></th>
-							<td>
-								<input type="checkbox" name="twk_utils_debug_settings[wp_debug_display]" 
-									value="1" <?php checked( $config_constants['WP_DEBUG_DISPLAY'], true ); ?> />
-								<p class="description"><?php esc_html_e( 'Shows debug messages on the front end', 'twk-utils' ); ?></p>
-							</td>
-						</tr>
-					</table>
+			<form method="post" action="options.php">
+				<?php
+				settings_fields( 'twk_utils_debug_group' );
+				?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG', 'twk-utils' ); ?></th>
+						<td>
+							<input type="checkbox" name="twk_utils_debug_settings[wp_debug]" 
+								value="1" <?php checked( $config_constants['WP_DEBUG'], true ); ?> />
+							<p class="description"><?php esc_html_e( 'Enables WordPress debug mode', 'twk-utils' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_LOG', 'twk-utils' ); ?></th>
+						<td>
+							<input type="checkbox" name="twk_utils_debug_settings[wp_debug_log]" 
+								value="1" <?php checked( $config_constants['WP_DEBUG_LOG'], true ); ?> />
+							<p class="description"><?php esc_html_e( 'Saves debug messages to wp-content/debug.log', 'twk-utils' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_DISPLAY', 'twk-utils' ); ?></th>
+						<td>
+							<input type="checkbox" name="twk_utils_debug_settings[wp_debug_display]" 
+								value="1" <?php checked( $config_constants['WP_DEBUG_DISPLAY'], true ); ?> />
+							<p class="description"><?php esc_html_e( 'Shows debug messages on the front end', 'twk-utils' ); ?></p>
+						</td>
+					</tr>
+				</table>
 
-					<?php submit_button(); ?>
+				<?php submit_button(); ?>
+			</form>
+
+			<?php if ( $config_constants['WP_DEBUG_LOG'] && ! empty( $log_content ) ) : ?>
+				<h3><?php esc_html_e( 'Debug Log', 'twk-utils' ); ?></h3>
+				<form method="post">
+					<?php wp_nonce_field( 'twk_debugger_clear_log' ); ?>
+					<input type="submit" name="clear_debug_log" class="button button-secondary" 
+						value="<?php esc_attr_e( 'Clear Log File', 'twk-utils' ); ?>" />
 				</form>
-
-				<?php if ( $config_constants['WP_DEBUG_LOG'] && ! empty( $log_content ) ) : ?>
-					<h3><?php esc_html_e( 'Debug Log', 'twk-utils' ); ?></h3>
-					<form method="post">
-						<?php wp_nonce_field( 'twk_debugger_clear_log' ); ?>
-						<input type="submit" name="clear_debug_log" class="button button-secondary" 
-							value="<?php esc_attr_e( 'Clear Log File', 'twk-utils' ); ?>" />
-					</form>
-					<?php $this->display_debug_log_viewer( $log_content ); ?>
-				<?php endif;
-			else : ?>
-				<form method="post" action="options.php">
-					<?php
-					settings_fields( 'twk_utils_misc_group' );
-					do_settings_sections( $this->plugin_name . '_misc' );
-					submit_button();
-					?>
-				</form>
+				<?php $this->display_debug_log_viewer( $log_content ); ?>
 			<?php endif; ?>
 		</div>
 		<?php

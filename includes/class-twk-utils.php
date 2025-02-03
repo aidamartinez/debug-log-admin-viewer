@@ -49,15 +49,6 @@ class Twk_Utils {
 	protected $version;
 
 	/**
-	 * The SE visibility instance.
-	 *
-	 * @since    1.0.0
-	 * @access   protected
-	 * @var      Twk_Utils_SE_Visibility    $se_visibility    Handles search engine visibility features.
-	 */
-	protected $se_visibility;
-
-	/**
 	 * Initialize the class and set its properties.
 	 *
 	 * @since    1.0.0
@@ -79,10 +70,8 @@ class Twk_Utils {
 	private function load_dependencies() {
 		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-twk-utils-loader.php';
 		require_once plugin_dir_path(dirname(__FILE__)) . 'admin/class-twk-utils-admin.php';
-		require_once plugin_dir_path(dirname(__FILE__)) . 'admin/class-twk-utils-se-visibility.php';
-		
+
 		$this->loader = new Twk_Utils_Loader();
-		$this->se_visibility = new Twk_Utils_SE_Visibility($this->plugin_name, $this->version);
 	}
 
 	/**
@@ -95,16 +84,9 @@ class Twk_Utils {
 	private function define_admin_hooks() {
 		$plugin_admin = new Twk_Utils_Admin($this->plugin_name, $this->version);
 		
-		// Debug settings hooks
+		// Debug settings hooks.
 		$this->loader->add_action('admin_menu', $plugin_admin, 'add_options_page');
 		$this->loader->add_action('admin_init', $plugin_admin, 'register_settings');
-
-		// SE Visibility hooks
-		$this->loader->add_action('admin_init', $this->se_visibility, 'register_settings');
-		$this->loader->add_action('admin_bar_menu', $this->se_visibility, 'maybe_add_admin_bar_notice', 100);
-		
-		// Enqueue styles for admin only
-		$this->loader->add_action('admin_enqueue_scripts', $this->se_visibility, 'enqueue_styles');
 	}
 
 	/**

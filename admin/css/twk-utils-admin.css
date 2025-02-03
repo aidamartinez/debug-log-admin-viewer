@@ -1,14 +1,3 @@
-/* SE Visibility notification */
-#wpadminbar #wp-admin-bar-twk-se-visibility-notice,
-#wpadminbar #wp-admin-bar-twk-se-visibility-notice:hover {
-    background-color: #f56e28 !important;
-}
-
-#wpadminbar #wp-admin-bar-twk-se-visibility-notice .ab-item,
-#wpadminbar #wp-admin-bar-twk-se-visibility-notice:hover .ab-item {
-    color: #ffffff !important;
-}
-
 .debug-log-viewer {
 	background: #fff;
 	border: 1px solid #ccd0d4;
@@ -182,4 +171,4 @@
 	font-family: monospace;
 	white-space: pre-wrap;
 	font-size: 12px;
-} 
+}
