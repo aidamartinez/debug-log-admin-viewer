@@ -2,62 +2,84 @@
 /**
  * The admin-specific functionality of the plugin.
  *
+ * @link       https://github.com/your-github-username/debug-log-admin-viewer
  * @since      1.0.0
  *
- * @package    Twk_Utils
- * @subpackage Twk_Utils/admin
+ * @package    Debug_Log_Admin_Viewer
+ * @subpackage Debug_Log_Admin_Viewer/admin
  */
 
-class Twk_Utils_Admin {
+/**
+ * The admin-specific functionality of the plugin.
+ *
+ * Defines the plugin name, version, and hooks for the admin area.
+ *
+ * @package    Debug_Log_Admin_Viewer
+ * @subpackage Debug_Log_Admin_Viewer/admin
+ * @author     TWK Media <aida@thewebkitchen.co.uk>
+ */
+class Debug_Log_Admin_Viewer_Admin {
+
 	/**
 	 * The ID of this plugin.
 	 *
-	 * @var string
+	 * @since    1.0.0
+	 * @access   private
+	 * @var      string    $plugin_name    The ID of this plugin.
 	 */
 	private $plugin_name;
 
 	/**
 	 * The version of this plugin.
 	 *
-	 * @var string
+	 * @since    1.0.0
+	 * @access   private
+	 * @var      string    $version    The current version of this plugin.
 	 */
 	private $version;
 
 	/**
 	 * Path to wp-config.php file.
 	 *
-	 * @var string
+	 * @since    1.0.0
+	 * @access   private
+	 * @var      string    $wp_config_path    Path to wp-config.php file.
 	 */
 	private $wp_config_path;
 
 	/**
 	 * Path to backup directory.
 	 *
-	 * @var string
+	 * @since    1.0.0
+	 * @access   private
+	 * @var      string    $backup_dir    Path to backup directory.
 	 */
 	private $backup_dir;
 
 	/**
 	 * Maximum number of backups to keep.
 	 *
-	 * @var int
+	 * @since    1.0.0
+	 * @access   private
+	 * @var      int    $max_backups    Maximum number of backups to keep.
 	 */
 	private $max_backups = 5;
 
 	/**
 	 * Initialize the class and set its properties.
 	 *
-	 * @param string $plugin_name The name of this plugin.
-	 * @param string $version     The version of this plugin.
+	 * @since    1.0.0
+	 * @param    string    $plugin_name    The name of this plugin.
+	 * @param    string    $version        The version of this plugin.
 	 */
 	public function __construct( $plugin_name, $version ) {
-		$this->plugin_name     = $plugin_name;
-		$this->version        = $version;
+		$this->plugin_name = $plugin_name;
+		$this->version = $version;
 		$this->wp_config_path = $this->find_wp_config_path();
 		
 		// Set up backup directory.
-		$upload_dir          = wp_upload_dir();
-		$this->backup_dir    = $upload_dir['basedir'] . '/twk-utils';
+		$upload_dir = wp_upload_dir();
+		$this->backup_dir = $upload_dir['basedir'] . '/debug-log-admin-viewer';
 		
 		// Create backup directory if it doesn't exist.
 		if ( ! file_exists( $this->backup_dir ) ) {
@@ -70,23 +92,25 @@ class Twk_Utils_Admin {
 			file_put_contents( $this->backup_dir . '/index.php', '<?php // Silence is golden' );
 		}
 
-		// Add these lines to hook the enqueue function
+		// Add these lines to hook the enqueue function.
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
 	}
 
 	/**
-	 * Find the wp-config.php file path.
+	 * Find the path to wp-config.php file.
 	 *
-	 * @return string|false Path to wp-config.php or false if not found.
+	 * @since    1.0.0
+	 * @access   private
+	 * @return   string    Path to wp-config.php file.
 	 */
 	private function find_wp_config_path() {
-		// First check in root directory.
-		if ( file_exists( ABSPATH . 'wp-config.php' ) ) {
-			return ABSPATH . 'wp-config.php';
-		} elseif ( file_exists( dirname( ABSPATH ) . '/wp-config.php' ) ) {
-			return dirname( ABSPATH ) . '/wp-config.php';
+		$path = ABSPATH . 'wp-config.php';
+		
+		if ( ! file_exists( $path ) ) {
+			$path = dirname( ABSPATH ) . '/wp-config.php';
 		}
-		return false;
+		
+		return $path;
 	}
 
 	/**
@@ -144,8 +168,8 @@ class Twk_Utils_Admin {
 	 */
 	public function add_options_page() {
 		add_options_page(
-			'TWK Utils Settings',
-			'TWK Utils',
+			'Debug Log Admin Viewer Settings',
+			'Debug Log Admin Viewer',
 			'manage_options',
 			$this->plugin_name,
 			array( $this, 'display_options_page' )
@@ -156,10 +180,9 @@ class Twk_Utils_Admin {
 	 * Register plugin settings.
 	 */
 	public function register_settings() {
-		// Only register debug settings
 		register_setting(
-			'twk_utils_debug_group',
-			'twk_utils_debug_settings',
+			'debug_log_admin_viewer_settings',
+			'debug_log_admin_viewer_settings',
 			array(
 				'sanitize_callback' => array( $this, 'validate_settings' ),
 			)
@@ -198,7 +221,7 @@ class Twk_Utils_Admin {
 
 			// Check if wp-config.php exists and is writable
 			if ( ! $this->wp_config_path || ! file_exists( $this->wp_config_path ) ) {
-				error_log('TWK Utils: wp-config.php not found at: ' . $this->wp_config_path);
+				error_log('Debug log admin viewer: wp-config.php not found at: ' . $this->wp_config_path);
 				add_settings_error(
 					$this->plugin_name,
 					'wp_config_not_found',
@@ -216,7 +239,7 @@ class Twk_Utils_Admin {
 				
 				// Try to modify permissions
 				if ( ! @chmod( $this->wp_config_path, 0644 ) ) {
-					error_log('TWK Utils: Failed to modify wp-config.php permissions');
+					error_log('Debug log admin viewer: Failed to modify wp-config.php permissions');
 					add_settings_error(
 						$this->plugin_name,
 						'wp_config_not_writable',
@@ -234,7 +257,7 @@ class Twk_Utils_Admin {
 				if ( $original_perms !== null ) {
 					@chmod( $this->wp_config_path, $original_perms );
 				}
-				error_log('TWK Utils: Failed to create backup');
+				error_log('Debug log admin viewer: Failed to create backup');
 				add_settings_error(
 					$this->plugin_name,
 					'backup_failed',
@@ -250,7 +273,7 @@ class Twk_Utils_Admin {
 				if ( $original_perms !== null ) {
 					@chmod( $this->wp_config_path, $original_perms );
 				}
-				error_log('TWK Utils: Failed to read wp-config.php');
+				error_log('Debug log admin viewer: Failed to read wp-config.php');
 				add_settings_error(
 					$this->plugin_name,
 					'wp_config_not_readable',
@@ -270,9 +293,9 @@ class Twk_Utils_Admin {
 				'WP_DEBUG_DISPLAY' => ! empty( $input['wp_debug_display'] )
 			);
 
-			// Remove any existing TWK Utils Constants block
+			// Remove any existing Debug log admin viewer Constants block
 			$config_content = preg_replace(
-				'/\/\* TWK Utils Debug Constants \*\/\n.*?\n\n/s',
+				'/\/\* Debug log admin viewer Constants \*\/\n.*?\n\n/s',
 				'',
 				$config_content
 			);
@@ -294,7 +317,7 @@ class Twk_Utils_Admin {
 			foreach ( $new_constants as $name => $value ) {
 				$constants_block[] = "define( '" . $name . "', " . ($value ? 'true' : 'false') . " );";
 			}
-			$constants_block = "/* TWK Utils Debug Constants */\n" . implode("\n", $constants_block) . "\n\n";
+			$constants_block = "/* Debug log admin viewer Constants */\n" . implode("\n", $constants_block) . "\n\n";
 
 			// Add new constants before the "stop editing" line
 			$marker = "/* That's all, stop editing! Happy blogging. */";
@@ -314,7 +337,7 @@ class Twk_Utils_Admin {
 				if ( $original_perms !== null ) {
 					@chmod( $this->wp_config_path, $original_perms );
 				}
-				error_log('TWK Utils: Failed to write to wp-config.php');
+				error_log('Debug log admin viewer: Failed to write to wp-config.php');
 				add_settings_error(
 					$this->plugin_name,
 					'wp_config_not_writable',
@@ -333,7 +356,7 @@ class Twk_Utils_Admin {
 				$new_constants['WP_DEBUG_LOG'] !== ! empty( $input['wp_debug_log'] ) ||
 				$new_constants['WP_DEBUG_DISPLAY'] !== ! empty( $input['wp_debug_display'] )
 			) {
-				error_log('TWK Utils: Constants verification failed. Debug info: ' . json_encode($debug_info));
+				error_log('Debug log admin viewer: Constants verification failed. Debug info: ' . json_encode($debug_info));
 				add_settings_error(
 					$this->plugin_name,
 					'settings_not_updated',
@@ -371,7 +394,7 @@ class Twk_Utils_Admin {
 		$config_writable = $this->wp_config_path && is_writable( $this->wp_config_path );
 		
 		// Handle log clearing.
-		if ( isset( $_POST['clear_debug_log'] ) && check_admin_referer( 'twk_debugger_clear_log' ) ) {
+		if ( isset( $_POST['clear_debug_log'] ) && check_admin_referer( 'debug_log_admin_viewer_clear_log_nonce' ) ) {
 			$log_file = WP_CONTENT_DIR . '/debug.log';
 			if ( file_exists( $log_file ) ) {
 				file_put_contents( $log_file, '' );
@@ -388,41 +411,41 @@ class Twk_Utils_Admin {
 		}
 		?>
 		<div class="wrap">
-			<h2><?php esc_html_e( 'TWK Utils Settings', 'twk-utils' ); ?></h2>
+			<h2><?php esc_html_e( 'Debug Log Admin Viewer Settings', 'debug-log-admin-viewer' ); ?></h2>
 
 			<?php if ( ! $config_writable ) : ?>
 				<div class="notice notice-error">
-					<p><?php esc_html_e( 'Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.', 'twk-utils' ); ?></p>
+					<p><?php esc_html_e( 'Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.', 'debug-log-admin-viewer' ); ?></p>
 				</div>
 			<?php endif; ?>
 
 			<form method="post" action="options.php">
 				<?php
-				settings_fields( 'twk_utils_debug_group' );
+				settings_fields( 'debug_log_admin_viewer_settings' );
 				?>
 				<table class="form-table" role="presentation">
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG', 'twk-utils' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG', 'debug-log-admin-viewer' ); ?></th>
 						<td>
-							<input type="checkbox" name="twk_utils_debug_settings[wp_debug]" 
+							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug]" 
 								value="1" <?php checked( $config_constants['WP_DEBUG'], true ); ?> />
-							<p class="description"><?php esc_html_e( 'Enables WordPress debug mode', 'twk-utils' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Enables WordPress debug mode', 'debug-log-admin-viewer' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_LOG', 'twk-utils' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_LOG', 'debug-log-admin-viewer' ); ?></th>
 						<td>
-							<input type="checkbox" name="twk_utils_debug_settings[wp_debug_log]" 
+							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug_log]" 
 								value="1" <?php checked( $config_constants['WP_DEBUG_LOG'], true ); ?> />
-							<p class="description"><?php esc_html_e( 'Saves debug messages to wp-content/debug.log', 'twk-utils' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Saves debug messages to wp-content/debug.log', 'debug-log-admin-viewer' ); ?></p>
 						</td>
 					</tr>
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_DISPLAY', 'twk-utils' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_DISPLAY', 'debug-log-admin-viewer' ); ?></th>
 						<td>
-							<input type="checkbox" name="twk_utils_debug_settings[wp_debug_display]" 
+							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug_display]" 
 								value="1" <?php checked( $config_constants['WP_DEBUG_DISPLAY'], true ); ?> />
-							<p class="description"><?php esc_html_e( 'Shows debug messages on the front end', 'twk-utils' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Shows debug messages on the front end', 'debug-log-admin-viewer' ); ?></p>
 						</td>
 					</tr>
 				</table>
@@ -431,13 +454,13 @@ class Twk_Utils_Admin {
 			</form>
 
 			<?php if ( $config_constants['WP_DEBUG_LOG'] && ! empty( $log_content ) ) : ?>
-				<h3><?php esc_html_e( 'Debug Log', 'twk-utils' ); ?></h3>
+				<h3><?php esc_html_e( 'Debug Log', 'debug-log-admin-viewer' ); ?></h3>
 				<form method="post">
-					<?php wp_nonce_field( 'twk_debugger_clear_log' ); ?>
+					<?php wp_nonce_field( 'debug_log_admin_viewer_clear_log_nonce' ); ?>
 					<input type="submit" name="clear_debug_log" class="button button-secondary" 
-						value="<?php esc_attr_e( 'Clear Log File', 'twk-utils' ); ?>" />
+						value="<?php esc_attr_e( 'Clear Log File', 'debug-log-admin-viewer' ); ?>" />
 				</form>
-				<?php $this->display_debug_log_viewer( $log_content ); ?>
+				<?php $this->display_debug_log_admin_viewer( $log_content ); ?>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -518,7 +541,7 @@ class Twk_Utils_Admin {
 			$constant_value = "'" . addslashes( $constant_value ) . "'";
 		}
 
-		$constants_marker  = '/* TWK Utils Constants */';
+		$constants_marker  = '/* Debug log admin viewer Constants */';
 		$constants_start   = strpos( $config_content, $constants_marker );
 
 		if ( false === $constants_start ) {
@@ -669,21 +692,21 @@ class Twk_Utils_Admin {
 	}
 
 	/**
-	 * Display the debug log viewer.
+	 * Display the debug log admin viewer.
 	 *
 	 * @param string $log_content Raw log content.
 	 */
-	private function display_debug_log_viewer( $log_content ) {
+	private function display_debug_log_admin_viewer( $log_content ) {
 		$entries = $this->parse_debug_log( $log_content );
 		$error_types = array(
-			'fatal'      => __( 'Fatal Errors', 'twk-utils' ),
-			'parse'      => __( 'Parse Errors', 'twk-utils' ),
-			'database'   => __( 'Database Errors', 'twk-utils' ),
-			'warning'    => __( 'Warnings', 'twk-utils' ),
-			'deprecated' => __( 'Deprecated', 'twk-utils' ),
-			'strict'     => __( 'Strict Standards', 'twk-utils' ),
-			'notice'     => __( 'Notices', 'twk-utils' ),
-			'unknown'    => __( 'Other', 'twk-utils' ),
+			'fatal'      => __( 'Fatal Errors', 'debug-log-admin-viewer' ),
+			'parse'      => __( 'Parse Errors', 'debug-log-admin-viewer' ),
+			'database'   => __( 'Database Errors', 'debug-log-admin-viewer' ),
+			'warning'    => __( 'Warnings', 'debug-log-admin-viewer' ),
+			'deprecated' => __( 'Deprecated', 'debug-log-admin-viewer' ),
+			'strict'     => __( 'Strict Standards', 'debug-log-admin-viewer' ),
+			'notice'     => __( 'Notices', 'debug-log-admin-viewer' ),
+			'unknown'    => __( 'Other', 'debug-log-admin-viewer' ),
 		);
 
 		// Get active filters from URL
@@ -707,10 +730,10 @@ class Twk_Utils_Admin {
 		$paged_entries    = array_slice( $filtered_entries, $offset, $entries_per_page );
 
 		?>
-		<div class="debug-log-viewer">
+		<div class="debug-log-admin-viewer">
 			<div class="debug-log-controls">
 				<div class="debug-log-search">
-					<input type="text" id="log-search" placeholder="<?php esc_attr_e( 'Search log entries...', 'twk-utils' ); ?>" />
+					<input type="text" id="log-search" placeholder="<?php esc_attr_e( 'Search log entries...', 'debug-log-admin-viewer' ); ?>" />
 				</div>
 				<div class="debug-log-filters">
 					<?php foreach ( $error_types as $type => $label ) : ?>
@@ -727,7 +750,7 @@ class Twk_Utils_Admin {
 			</div>
 
 			<?php if ( empty( $filtered_entries ) ) : ?>
-				<p><?php esc_html_e( 'No log entries found matching the selected filters.', 'twk-utils' ); ?></p>
+				<p><?php esc_html_e( 'No log entries found matching the selected filters.', 'debug-log-admin-viewer' ); ?></p>
 			<?php else : ?>
 				<div class="debug-log-entries">
 					<?php foreach ( $paged_entries as $entry ) : ?>
@@ -750,7 +773,7 @@ class Twk_Utils_Admin {
 							<?php endif; ?>
 							<button class="copy-log button button-small" 
 								data-clipboard-text="<?php echo esc_attr( $entry['message'] ); ?>"
-								title="<?php esc_attr_e( 'Copy to clipboard', 'twk-utils' ); ?>">
+								title="<?php esc_attr_e( 'Copy to clipboard', 'debug-log-admin-viewer' ); ?>">
 								<span class="dashicons dashicons-clipboard"></span>
 							</button>
 						</div>
@@ -768,14 +791,14 @@ class Twk_Utils_Admin {
 									'filters' => implode(',', $active_filters)
 								), $base_url );
 								?>
-								<a href="<?php echo esc_url( $prev_url ); ?>" class="button">&laquo; <?php esc_html_e( 'Previous', 'twk-utils' ); ?></a>
+								<a href="<?php echo esc_url( $prev_url ); ?>" class="button">&laquo; <?php esc_html_e( 'Previous', 'debug-log-admin-viewer' ); ?></a>
 							<?php endif; ?>
 
 							<span class="debug-log-pagination-info">
 								<?php
 								printf(
 									/* translators: 1: Current page, 2: Total pages */
-									esc_html__( 'Page %1$s of %2$s', 'twk-utils' ),
+									esc_html__( 'Page %1$s of %2$s', 'debug-log-admin-viewer' ),
 									$current_page,
 									$total_pages
 								);
@@ -790,7 +813,7 @@ class Twk_Utils_Admin {
 									'filters' => implode(',', $active_filters)
 								), $base_url );
 								?>
-								<a href="<?php echo esc_url( $next_url ); ?>" class="button"><?php esc_html_e( 'Next', 'twk-utils' ); ?> &raquo;</a>
+								<a href="<?php echo esc_url( $next_url ); ?>" class="button"><?php esc_html_e( 'Next', 'debug-log-admin-viewer' ); ?> &raquo;</a>
 							<?php endif; ?>
 						</div>
 					<?php endif; ?>
@@ -827,15 +850,13 @@ class Twk_Utils_Admin {
 	 * Register the stylesheets and JavaScript for the admin area.
 	 */
 	public function enqueue_admin_scripts() {
-		// Get current screen.
 		$screen = get_current_screen();
 
-		// Check if we're on the settings page for this plugin.
-		if ( $screen && $screen->id === 'settings_page_twk-utils' ) {
+		if ( $screen && $screen->id === 'settings_page_debug-log-admin-viewer' ) {
 			wp_enqueue_style( 'dashicons' );
 			wp_enqueue_style(
 				$this->plugin_name,
-				plugin_dir_url( __FILE__ ) . 'css/twk-utils-admin.css',
+				plugin_dir_url( __FILE__ ) . 'css/debug-log-admin-viewer-admin.css',
 				array(),
 				$this->version,
 				'all'
@@ -851,7 +872,7 @@ class Twk_Utils_Admin {
 
 			wp_enqueue_script(
 				$this->plugin_name,
-				plugin_dir_url( __FILE__ ) . 'js/twk-utils-admin.js',
+				plugin_dir_url( __FILE__ ) . 'js/debug-log-admin-viewer-admin.js',
 				array( 'jquery', 'clipboard' ),
 				$this->version,
 				true

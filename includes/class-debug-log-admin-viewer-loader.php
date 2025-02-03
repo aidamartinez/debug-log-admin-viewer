@@ -2,11 +2,11 @@
 /**
  * Register all actions and filters for the plugin.
  *
- * @link       https://example.com
+ * @link       https://github.com/your-github-username/debug-log-admin-viewer
  * @since      1.0.0
  *
- * @package    TWK_Utils
- * @subpackage TWK_Utils/includes
+ * @package    Debug_Log_Admin_Viewer
+ * @subpackage Debug_Log_Admin_Viewer/includes
  */
 
 /**
@@ -16,11 +16,11 @@
  * the plugin, and register them with the WordPress API. Call the
  * run function to execute the list of actions and filters.
  *
- * @package    TWK_Utils
- * @subpackage TWK_Utils/includes
- * @author     Your Name <email@example.com>
+ * @package    Debug_Log_Admin_Viewer
+ * @subpackage Debug_Log_Admin_Viewer/includes
+ * @author     TWK Media <aida@thewebkitchen.co.uk>
  */
-class Twk_Utils_Loader {
+class Debug_Log_Admin_Viewer_Loader {
 
 	/**
 	 * The array of actions registered with WordPress.

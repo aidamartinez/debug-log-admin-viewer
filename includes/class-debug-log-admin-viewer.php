@@ -2,10 +2,10 @@
 /**
  * The core plugin class.
  *
- * @link       https://example.com
+ * @link       https://github.com/yourgithubusername/debug-log-admin-viewer
  * @since      1.0.0
  *
- * @package    Twk_Utils
+ * @package    Debug_Log_Admin_Viewer
  */
 
 /**
@@ -15,10 +15,10 @@
  * public-facing site hooks.
  *
  * @since      1.0.0
- * @package    Twk_Utils
- * @author     Your Name <email@example.com>
+ * @package    Debug_Log_Admin_Viewer
+ * @author     TWK Media <aida@thewebkitchen.co.uk>
  */
-class Twk_Utils {
+class Debug_Log_Admin_Viewer {
 
 	/**
 	 * The loader that's responsible for maintaining and registering all hooks that power
@@ -26,7 +26,7 @@ class Twk_Utils {
 	 *
 	 * @since    1.0.0
 	 * @access   protected
-	 * @var      Twk_Utils_Loader    $loader    Maintains and registers all hooks for the plugin.
+	 * @var      Debug_Log_Admin_Viewer_Loader    $loader    Maintains and registers all hooks for the plugin.
 	 */
 	protected $loader;
 
@@ -54,10 +54,11 @@ class Twk_Utils {
 	 * @since    1.0.0
 	 */
 	public function __construct() {
-		$this->plugin_name = 'twk-utils';
-		$this->version = TWK_UTILS_VERSION;
+		$this->plugin_name = 'debug-log-admin-viewer';
+		$this->version = DEBUG_LOG_ADMIN_VIEWER_VERSION;
 		
 		$this->load_dependencies();
+		$this->set_locale();
 		$this->define_admin_hooks();
 	}
 
@@ -68,10 +69,33 @@ class Twk_Utils {
 	 * @access   private
 	 */
 	private function load_dependencies() {
-		require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-twk-utils-loader.php';
-		require_once plugin_dir_path(dirname(__FILE__)) . 'admin/class-twk-utils-admin.php';
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'includes/class-debug-log-admin-viewer-loader.php';
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-debug-log-admin-viewer-admin.php';
 
-		$this->loader = new Twk_Utils_Loader();
+		$this->loader = new Debug_Log_Admin_Viewer_Loader();
+	}
+
+	/**
+	 * Set the locale for this plugin for internationalization.
+	 *
+	 * @since    1.0.0
+	 * @access   private
+	 */
+	private function set_locale() {
+		add_action( 'plugins_loaded', array( $this, 'load_plugin_textdomain' ) );
+	}
+
+	/**
+	 * Load the plugin text domain for translation.
+	 *
+	 * @since    1.0.0
+	 */
+	public function load_plugin_textdomain() {
+		load_plugin_textdomain(
+			'debug-log-admin-viewer',
+			false,
+			dirname( dirname( plugin_basename( __FILE__ ) ) ) . '/languages/'
+		);
 	}
 
 	/**
@@ -82,7 +106,7 @@ class Twk_Utils {
 	 * @access   private
 	 */
 	private function define_admin_hooks() {
-		$plugin_admin = new Twk_Utils_Admin($this->plugin_name, $this->version);
+		$plugin_admin = new Debug_Log_Admin_Viewer_Admin( $this->get_plugin_name(), $this->get_version() );
 		
 		// Debug settings hooks.
 		$this->loader->add_action('admin_menu', $plugin_admin, 'add_options_page');
