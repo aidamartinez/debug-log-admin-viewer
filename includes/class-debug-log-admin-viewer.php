@@ -2,7 +2,7 @@
 /**
  * The core plugin class.
  *
- * @link       https://github.com/yourgithubusername/debug-log-admin-viewer
+ * @link       https://github.com/aidamartinez/debug-log-admin-viewer
  * @since      1.0.0
  *
  * @package    Debug_Log_Admin_Viewer
@@ -16,7 +16,7 @@
  *
  * @since      1.0.0
  * @package    Debug_Log_Admin_Viewer
- * @author     TWK Media <aida@thewebkitchen.co.uk>
+ * @author     TWK Media <software@thewebkitchen.co.uk>
  */
 class Debug_Log_Admin_Viewer {
 

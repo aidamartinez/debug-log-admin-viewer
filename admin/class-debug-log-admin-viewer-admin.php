@@ -2,7 +2,7 @@
 /**
  * The admin-specific functionality of the plugin.
  *
- * @link       https://github.com/your-github-username/debug-log-admin-viewer
+ * @link       https://github.com/aidamartinez/debug-log-admin-viewer
  * @since      1.0.0
  *
  * @package    Debug_Log_Admin_Viewer
@@ -16,7 +16,7 @@
  *
  * @package    Debug_Log_Admin_Viewer
  * @subpackage Debug_Log_Admin_Viewer/admin
- * @author     TWK Media <aida@thewebkitchen.co.uk>
+ * @author     TWK Media <software@thewebkitchen.co.uk>
  */
 class Debug_Log_Admin_Viewer_Admin {
 
