@@ -48,22 +48,31 @@ class Debug_Log_Admin_Viewer_Admin {
 	private $wp_config_path;
 
 	/**
-	 * Path to backup directory.
+	 * Maximum number of backups to keep
 	 *
 	 * @since    1.0.0
 	 * @access   private
-	 * @var      string    $backup_dir    Path to backup directory.
+	 * @var      int
+	 */
+	private $max_backups = 5;
+
+	/**
+	 * Backup directory path
+	 *
+	 * @since    1.0.0
+	 * @access   private
+	 * @var      string
 	 */
 	private $backup_dir;
 
 	/**
-	 * Maximum number of backups to keep.
+	 * WordPress filesystem instance.
 	 *
 	 * @since    1.0.0
 	 * @access   private
-	 * @var      int    $max_backups    Maximum number of backups to keep.
+	 * @var      WP_Filesystem    $filesystem    WordPress filesystem instance.
 	 */
-	private $max_backups = 5;
+	private $filesystem;
 
 	/**
 	 * Initialize the class and set its properties.
@@ -75,25 +84,71 @@ class Debug_Log_Admin_Viewer_Admin {
 	public function __construct( $plugin_name, $version ) {
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
-		$this->wp_config_path = $this->find_wp_config_path();
-		
-		// Set up backup directory.
-		$upload_dir = wp_upload_dir();
-		$this->backup_dir = $upload_dir['basedir'] . '/debug-log-admin-viewer';
-		
-		// Create backup directory if it doesn't exist.
-		if ( ! file_exists( $this->backup_dir ) ) {
-			wp_mkdir_p( $this->backup_dir );
-			
-			// Create .htaccess to protect backups.
-			file_put_contents( $this->backup_dir . '/.htaccess', 'deny from all' );
-			
-			// Create index.php for extra security.
-			file_put_contents( $this->backup_dir . '/index.php', '<?php // Silence is golden' );
+
+		// Initialize filesystem early
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		WP_Filesystem();
+		global $wp_filesystem;
+		$this->filesystem = $wp_filesystem;
+
+		// Delay other initialization until WordPress is fully loaded
+		add_action('plugins_loaded', array($this, 'init'));
+	}
+
+	/**
+	 * Initialize the plugin after WordPress is fully loaded.
+	 */
+	public function init() {
+		// Re-initialize filesystem if needed
+		if (empty($this->filesystem)) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+			global $wp_filesystem;
+			$this->filesystem = $wp_filesystem;
 		}
 
-		// Add these lines to hook the enqueue function.
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
+		// Set up paths
+		$this->wp_config_path = $this->find_wp_config_path();
+		if (!$this->wp_config_path || !$this->filesystem->exists($this->wp_config_path)) {
+			error_log('wp-config.php not found at: ' . $this->wp_config_path);
+			return;
+		}
+
+		// Set up backup directory in uploads
+		$upload_dir = wp_upload_dir();
+		if (is_wp_error($upload_dir)) {
+			error_log('Failed to get upload directory: ' . $upload_dir->get_error_message());
+			return;
+		}
+
+		$this->backup_dir = trailingslashit($upload_dir['basedir']) . 'debug-log-admin-viewer';
+		$this->max_backups = 5; // Keep only 5 most recent backups
+		
+		// Create backup directory if it doesn't exist
+		if (!$this->filesystem->exists($this->backup_dir)) {
+			//error_log('Backup directory does not exist, creating...');
+			if (!wp_mkdir_p($this->backup_dir)) {
+				error_log('Failed to create backup directory using wp_mkdir_p: ' . $this->backup_dir);
+				return;
+			}
+
+			// Create an index.php file to prevent directory listing
+			$index_file = trailingslashit($this->backup_dir) . 'index.php';
+			if (!$this->filesystem->put_contents($index_file, '<?php // Silence is golden', FS_CHMOD_FILE)) {
+				error_log('Failed to create index.php in backup directory');
+			}
+
+			// Create .htaccess to prevent direct access
+			$htaccess_file = trailingslashit($this->backup_dir) . '.htaccess';
+			if (!$this->filesystem->put_contents($htaccess_file, 'deny from all', FS_CHMOD_FILE)) {
+				error_log('Failed to create .htaccess in backup directory');
+			}
+		}
+
+		// Add hooks
+		add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
+		add_action('admin_menu', array($this, 'add_options_page'));
+		add_action('admin_init', array($this, 'register_settings'));
 	}
 
 	/**
@@ -104,10 +159,17 @@ class Debug_Log_Admin_Viewer_Admin {
 	 * @return   string    Path to wp-config.php file.
 	 */
 	private function find_wp_config_path() {
+		// Re-initialize filesystem if needed
+		if (empty($this->filesystem)) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+			global $wp_filesystem;
+			$this->filesystem = $wp_filesystem;
+		}
+
 		$path = ABSPATH . 'wp-config.php';
-		
-		if ( ! file_exists( $path ) ) {
-			$path = dirname( ABSPATH ) . '/wp-config.php';
+		if (!$this->filesystem->exists($path)) {
+			$path = dirname(ABSPATH) . '/wp-config.php';
 		}
 		
 		return $path;
@@ -119,24 +181,43 @@ class Debug_Log_Admin_Viewer_Admin {
 	 * @return bool True on success, false on failure.
 	 */
 	private function manage_backups() {
-		$backup_files = glob( $this->backup_dir . '/wp-config-backup-*.php' );
+		// Get list of backup files using WP_Filesystem
+		$backup_files = $this->filesystem->dirlist($this->backup_dir);
 		
-		if ( false === $backup_files ) {
+		if (false === $backup_files) {
+			error_log('Failed to list backup directory contents');
 			return false;
 		}
 
-		// Sort by creation time (oldest first).
-		usort(
-			$backup_files,
-			function( $a, $b ) {
-				return filemtime( $a ) - filemtime( $b );
+		$config_backups = array();
+		foreach ($backup_files as $file) {
+			if (preg_match('/^wp-config-backup-.*\.php$/', $file['name'])) {
+				// Get file modification time using filesystem
+				$filepath = trailingslashit($this->backup_dir) . $file['name'];
+				$time = $this->filesystem->mtime($filepath);
+				
+				if ($time !== false) {
+					$config_backups[] = array(
+						'path' => $filepath,
+						'time' => $time
+					);
+				}
 			}
-		);
+		}
 
-		// Remove oldest backups if we have more than max_backups.
-		while ( count( $backup_files ) >= $this->max_backups ) {
-			$oldest_backup = array_shift( $backup_files );
-			unlink( $oldest_backup );
+		if (empty($config_backups)) {
+			return true; // No backups to manage
+		}
+
+		// Sort by creation time (oldest first)
+		usort($config_backups, function($a, $b) {
+			return (int)$a['time'] - (int)$b['time'];
+		});
+
+		// Remove oldest backups if we have more than max_backups
+		while (count($config_backups) >= $this->max_backups) {
+			$oldest_backup = array_shift($config_backups);
+			$this->filesystem->delete($oldest_backup['path']);
 		}
 
 		return true;
@@ -149,14 +230,41 @@ class Debug_Log_Admin_Viewer_Admin {
 	 */
 	private function create_backup() {
 		// Manage existing backups first.
-		$this->manage_backups();
+		if (!$this->manage_backups()) {
+			error_log('Failed to manage existing backups');
+			return false;
+		}
 
 		// Create new backup filename with timestamp.
-		$backup_filename = 'wp-config-backup-' . date( 'Y-m-d-H-i-s' ) . '.php';
-		$backup_path    = $this->backup_dir . '/' . $backup_filename;
+		$backup_filename = 'wp-config-backup-' . gmdate('Y-m-d-H-i-s') . '.php';
+		$backup_path = trailingslashit($this->backup_dir) . $backup_filename;
 
-		// Copy the current wp-config.php to backup location.
-		if ( ! copy( $this->wp_config_path, $backup_path ) ) {
+		// Ensure backup directory exists
+		if (!$this->filesystem->exists($this->backup_dir)) {
+			if (!wp_mkdir_p($this->backup_dir)) {
+				error_log('Failed to create backup directory: ' . $this->backup_dir);
+				return false;
+			}
+		}
+
+		// Get source content
+		$source_content = $this->filesystem->get_contents($this->wp_config_path);
+		if (false === $source_content) {
+			error_log('Could not read source file: ' . $this->wp_config_path);
+			return false;
+		}
+
+		// Write backup file with proper permissions
+		if (!$this->filesystem->put_contents($backup_path, $source_content, FS_CHMOD_FILE)) {
+			error_log('Failed to write backup file: ' . $backup_path);
+			return false;
+		}
+
+		// Verify backup content
+		$backup_content = $this->filesystem->get_contents($backup_path);
+		if ($backup_content !== $source_content) {
+			$this->filesystem->delete($backup_path);
+			error_log('Backup file verification failed');
 			return false;
 		}
 
@@ -195,180 +303,32 @@ class Debug_Log_Admin_Viewer_Admin {
 	 * @param array $input The input array to validate.
 	 * @return array
 	 */
-	public function validate_settings( $input ) {
-		$current_constants = $this->get_config_constants();
-		$settings_changed = false;
-		$debug_info = array(); // Array to store debug information
-		
-		// Ensure input is an array.
-		$input = is_array( $input ) ? $input : array();
-		
-		// Compare with current settings.
-		if (
-			isset( $input['wp_debug'] ) !== $current_constants['WP_DEBUG'] ||
-			isset( $input['wp_debug_log'] ) !== $current_constants['WP_DEBUG_LOG'] ||
-			isset( $input['wp_debug_display'] ) !== $current_constants['WP_DEBUG_DISPLAY']
-		) {
-			$settings_changed = true;
+	public function validate_settings($input) {
+		// Verify nonce
+		if (!isset($_POST['debug_log_admin_viewer_nonce_field']) || !wp_verify_nonce($_POST['debug_log_admin_viewer_nonce_field'], 'debug_log_admin_viewer_nonce_action')) {
+			add_settings_error(
+				$this->plugin_name,
+				'nonce_failed',
+				'Security check failed. Please try again.',
+				'error'
+			);
+			return array();
 		}
 
-		if ( $settings_changed ) {
-			// Store initial state
-			$debug_info['initial_perms'] = substr(sprintf('%o', fileperms($this->wp_config_path)), -4);
-			$debug_info['is_writable'] = is_writable($this->wp_config_path);
-			$debug_info['file_owner'] = fileowner($this->wp_config_path);
-			$debug_info['php_user'] = getmyuid();
+		$validated = array();
 
-			// Check if wp-config.php exists and is writable
-			if ( ! $this->wp_config_path || ! file_exists( $this->wp_config_path ) ) {
-				error_log('Debug log admin viewer: wp-config.php not found at: ' . $this->wp_config_path);
-				add_settings_error(
-					$this->plugin_name,
-					'wp_config_not_found',
-					'wp-config.php file not found. Debug info: ' . json_encode($debug_info),
-					'error'
-				);
-				return $input;
-			}
+		$validated['wp_debug'] = isset($input['wp_debug']) ? 1 : 0;
+		$validated['wp_debug_log'] = isset($input['wp_debug_log']) ? 1 : 0;
+		$validated['wp_debug_display'] = isset($input['wp_debug_display']) ? 1 : 0;
 
-			// Try to make the file writable if it isn't already
-			$original_perms = null;
-			if ( ! is_writable( $this->wp_config_path ) ) {
-				$original_perms = fileperms( $this->wp_config_path );
-				$debug_info['original_perms'] = substr(sprintf('%o', $original_perms), -4);
-				
-				// Try to modify permissions
-				if ( ! @chmod( $this->wp_config_path, 0644 ) ) {
-					error_log('Debug log admin viewer: Failed to modify wp-config.php permissions');
-					add_settings_error(
-						$this->plugin_name,
-						'wp_config_not_writable',
-						'Cannot modify wp-config.php permissions. Debug info: ' . json_encode($debug_info),
-						'error'
-					);
-					return $input;
+		// Update wp-config.php
+		try {
+			// Update each constant individually
+			foreach ($validated as $constant => $value) {
+				$constant = strtoupper($constant);
+				if (!$this->update_single_wp_config_constant($constant, (bool)$value)) {
+					throw new Exception("Failed to update $constant");
 				}
-				$debug_info['modified_perms'] = '0644';
-			}
-
-			// Create backup
-			$backup_path = $this->create_backup();
-			if ( ! $backup_path ) {
-				if ( $original_perms !== null ) {
-					@chmod( $this->wp_config_path, $original_perms );
-				}
-				error_log('Debug log admin viewer: Failed to create backup');
-				add_settings_error(
-					$this->plugin_name,
-					'backup_failed',
-					'Could not create backup. Debug info: ' . json_encode($debug_info),
-					'error'
-				);
-				return $input;
-			}
-
-			// Read current content
-			$config_content = @file_get_contents( $this->wp_config_path );
-			if ( false === $config_content ) {
-				if ( $original_perms !== null ) {
-					@chmod( $this->wp_config_path, $original_perms );
-				}
-				error_log('Debug log admin viewer: Failed to read wp-config.php');
-				add_settings_error(
-					$this->plugin_name,
-					'wp_config_not_readable',
-					'Could not read wp-config.php. Debug info: ' . json_encode($debug_info),
-					'error'
-				);
-				return $input;
-			}
-
-			// Store original content length for verification
-			$debug_info['original_content_length'] = strlen($config_content);
-
-			// Prepare new constants
-			$new_constants = array(
-				'WP_DEBUG' => ! empty( $input['wp_debug'] ),
-				'WP_DEBUG_LOG' => ! empty( $input['wp_debug_log'] ),
-				'WP_DEBUG_DISPLAY' => ! empty( $input['wp_debug_display'] )
-			);
-
-			// Remove any existing Debug log admin viewer Constants block
-			$config_content = preg_replace(
-				'/\/\* Debug log admin viewer Constants \*\/\n.*?\n\n/s',
-				'',
-				$config_content
-			);
-
-			// Remove any existing debug constants
-			foreach ( array_keys( $new_constants ) as $constant ) {
-				$config_content = preg_replace(
-					"/define\s*\(\s*['\"]" . $constant . "['\"]\s*,\s*(true|false)\s*\);\n?/i",
-					'',
-					$config_content
-				);
-			}
-
-			// Clean up any multiple blank lines created by removals
-			$config_content = preg_replace("/\n{3,}/", "\n\n", $config_content);
-
-			// Create new constants block
-			$constants_block = array();
-			foreach ( $new_constants as $name => $value ) {
-				$constants_block[] = "define( '" . $name . "', " . ($value ? 'true' : 'false') . " );";
-			}
-			$constants_block = "/* Debug log admin viewer Constants */\n" . implode("\n", $constants_block) . "\n\n";
-
-			// Add new constants before the "stop editing" line
-			$marker = "/* That's all, stop editing! Happy blogging. */";
-			$pos = strpos( $config_content, $marker );
-			if ( false !== $pos ) {
-				$config_content = substr_replace( $config_content, $constants_block, $pos, 0 );
-			} else {
-				// If marker not found, add at the end of the file
-				$config_content = rtrim($config_content) . "\n\n" . $constants_block;
-			}
-
-			// Store new content length
-			$debug_info['new_content_length'] = strlen($config_content);
-
-			// Write the modified content
-			if ( false === @file_put_contents( $this->wp_config_path, $config_content ) ) {
-				if ( $original_perms !== null ) {
-					@chmod( $this->wp_config_path, $original_perms );
-				}
-				error_log('Debug log admin viewer: Failed to write to wp-config.php');
-				add_settings_error(
-					$this->plugin_name,
-					'wp_config_not_writable',
-					'Could not write to wp-config.php. Debug info: ' . json_encode($debug_info),
-					'error'
-				);
-				return $input;
-			}
-
-			// Verify the changes
-			$new_constants = $this->get_config_constants();
-			$debug_info['final_constants'] = $new_constants;
-
-			if (
-				$new_constants['WP_DEBUG'] !== ! empty( $input['wp_debug'] ) ||
-				$new_constants['WP_DEBUG_LOG'] !== ! empty( $input['wp_debug_log'] ) ||
-				$new_constants['WP_DEBUG_DISPLAY'] !== ! empty( $input['wp_debug_display'] )
-			) {
-				error_log('Debug log admin viewer: Constants verification failed. Debug info: ' . json_encode($debug_info));
-				add_settings_error(
-					$this->plugin_name,
-					'settings_not_updated',
-					'Settings verification failed. Debug info: ' . json_encode($debug_info),
-					'error'
-				);
-				return $input;
-			}
-
-			// Restore original permissions
-			if ( $original_perms !== null ) {
-				@chmod( $this->wp_config_path, $original_perms );
 			}
 
 			add_settings_error(
@@ -377,200 +337,279 @@ class Debug_Log_Admin_Viewer_Admin {
 				'Debug settings updated successfully.',
 				'success'
 			);
-		}
-
-		return $input;
-	}
-
-	/**
-	 * Display the options page content.
-	 */
-	public function display_options_page() {
-		// Get current tab.
-		$active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'debug';
-		
-		// Get actual values from wp-config.php.
-		$config_constants = $this->get_config_constants();
-		$config_writable = $this->wp_config_path && is_writable( $this->wp_config_path );
-		
-		// Handle log clearing.
-		if ( isset( $_POST['clear_debug_log'] ) && check_admin_referer( 'debug_log_admin_viewer_clear_log_nonce' ) ) {
-			$log_file = WP_CONTENT_DIR . '/debug.log';
-			if ( file_exists( $log_file ) ) {
-				file_put_contents( $log_file, '' );
-			}
-		}
-
-		// Get debug log content.
-		$log_content = '';
-		if ( $config_constants['WP_DEBUG_LOG'] ) {
-			$log_file = WP_CONTENT_DIR . '/debug.log';
-			if ( file_exists( $log_file ) ) {
-				$log_content = file_get_contents( $log_file );
-			}
-		}
-		?>
-		<div class="wrap">
-			<h2><?php esc_html_e( 'Debug Log Admin Viewer Settings', 'debug-log-admin-viewer' ); ?></h2>
-
-			<?php if ( ! $config_writable ) : ?>
-				<div class="notice notice-error">
-					<p><?php esc_html_e( 'Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.', 'debug-log-admin-viewer' ); ?></p>
-				</div>
-			<?php endif; ?>
-
-			<form method="post" action="options.php">
-				<?php
-				settings_fields( 'debug_log_admin_viewer_settings' );
-				?>
-				<table class="form-table" role="presentation">
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG', 'debug-log-admin-viewer' ); ?></th>
-						<td>
-							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug]" 
-								value="1" <?php checked( $config_constants['WP_DEBUG'], true ); ?> />
-							<p class="description"><?php esc_html_e( 'Enables WordPress debug mode', 'debug-log-admin-viewer' ); ?></p>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_LOG', 'debug-log-admin-viewer' ); ?></th>
-						<td>
-							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug_log]" 
-								value="1" <?php checked( $config_constants['WP_DEBUG_LOG'], true ); ?> />
-							<p class="description"><?php esc_html_e( 'Saves debug messages to wp-content/debug.log', 'debug-log-admin-viewer' ); ?></p>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_DISPLAY', 'debug-log-admin-viewer' ); ?></th>
-						<td>
-							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug_display]" 
-								value="1" <?php checked( $config_constants['WP_DEBUG_DISPLAY'], true ); ?> />
-							<p class="description"><?php esc_html_e( 'Shows debug messages on the front end', 'debug-log-admin-viewer' ); ?></p>
-						</td>
-					</tr>
-				</table>
-
-				<?php submit_button(); ?>
-			</form>
-
-			<?php if ( $config_constants['WP_DEBUG_LOG'] && ! empty( $log_content ) ) : ?>
-				<h3><?php esc_html_e( 'Debug Log', 'debug-log-admin-viewer' ); ?></h3>
-				<form method="post">
-					<?php wp_nonce_field( 'debug_log_admin_viewer_clear_log_nonce' ); ?>
-					<input type="submit" name="clear_debug_log" class="button button-secondary" 
-						value="<?php esc_attr_e( 'Clear Log File', 'debug-log-admin-viewer' ); ?>" />
-				</form>
-				<?php $this->display_debug_log_admin_viewer( $log_content ); ?>
-			<?php endif; ?>
-		</div>
-		<?php
-	}
-
-	/**
-	 * Get WordPress configuration constants.
-	 *
-	 * @return array Array of configuration constants and their values.
-	 */
-	private function get_config_constants() {
-		if ( ! $this->wp_config_path || ! file_exists( $this->wp_config_path ) ) {
-			return array(
-				'WP_DEBUG'         => false,
-				'WP_DEBUG_LOG'     => false,
-				'WP_DEBUG_DISPLAY' => false,
+		} catch (Exception $e) {
+			add_settings_error(
+				$this->plugin_name,
+				'config_update_failed',
+				'Failed to update wp-config.php: ' . $e->getMessage(),
+				'error'
 			);
-		}
-
-		$config_content = file_get_contents( $this->wp_config_path );
-		$constants     = array(
-			'WP_DEBUG'         => false,
-			'WP_DEBUG_LOG'     => false,
-			'WP_DEBUG_DISPLAY' => false,
-		);
-
-		foreach ( $constants as $constant => $default ) {
-			if ( preg_match( '/define\s*\(\s*[\'"]' . $constant . '[\'"]\s*,\s*(true|false)\s*\)/i', $config_content, $matches ) ) {
-				$constants[ $constant ] = 'true' === strtolower( $matches[1] );
-			}
-		}
-
-		return $constants;
-	}
-
-	/**
-	 * Get list of backup files.
-	 *
-	 * @return array Array of backup file paths.
-	 */
-	private function get_backup_files() {
-		$backup_files = glob( $this->backup_dir . '/wp-config-backup-*.php' );
-		
-		if ( false === $backup_files ) {
 			return array();
 		}
 
-		// Sort by creation time (newest first).
-		usort(
-			$backup_files,
-			function( $a, $b ) {
-				return filemtime( $b ) - filemtime( $a );
-			}
-		);
-
-		return $backup_files;
+		return $validated;
 	}
 
 	/**
-	 * Updates the wp-config.php file with a new constant.
+	 * Update constants in wp-config.php
+	 *
+	 * @param array $constants Array of constants to update
+	 * @throws Exception If update fails
+	 */
+	private function update_wp_config_constants($constants) {
+		// Read current content
+		$content = $this->filesystem->get_contents($this->wp_config_path);
+		if (false === $content) {
+			throw new Exception('Could not read wp-config.php');
+		}
+
+		// Check if the comment already exists
+		if (strpos($content, '/* Added by Debug Log Admin Viewer */') === false && !preg_match('/define\s*\(\s*[\'"]?(DEBUG_LOG_ADMIN_VIEWER|OTHER_CONSTANTS)[\'"]?\s*,/i', $content)) {
+			$new_constants = "/* Added by Debug Log Admin Viewer */\n";
+		} else {
+			$new_constants = '';
+		}
+
+		// Remove existing constants and clean up empty lines
+		foreach ($constants as $constant => $default) {
+			$content = preg_replace(
+				"/\s*define\s*\(\s*['\"]" . preg_quote($constant, '"') . "['\"]\s*,\s*(true|false)\s*\)\s*;\s*/i",
+				"\n",
+				$content
+			);
+		}
+
+		// Clean up multiple empty lines
+		$content = preg_replace("/\n{3,}/", "\n\n", $content);
+
+		// Add new constants
+		foreach ($constants as $name => $value) {
+			$new_constants .= "define('$name', " . ($value ? 'true' : 'false') . ");\n";
+		}
+
+		// Insert before "stop editing" line
+		$marker = "/* That's all, stop editing! Happy blogging. */";
+		$pos = strpos($content, $marker);
+		if (false === $pos) {
+			$content = rtrim($content) . "\n\n" . $new_constants;
+		} else {
+			$content = substr_replace($content, rtrim($new_constants) . "\n\n", $pos, 0);
+		}
+
+		// Clean up any remaining multiple empty lines
+		$content = preg_replace("/\n{3,}/", "\n\n", $content);
+		
+		// Create backup before making changes
+		if (!$this->create_backup()) {
+			throw new Exception('Failed to create backup before updating wp-config.php');
+		}
+
+		// Write the updated content
+		if (!$this->filesystem->put_contents($this->wp_config_path, $content, FS_CHMOD_FILE)) {
+			throw new Exception('Could not write to wp-config.php');
+		}
+	}
+
+	/**
+	 * Updates a single constant in the wp-config.php file.
 	 *
 	 * @param string $constant_name  The constant name.
-	 * @param mixed  $constant_value The constant value.
-	 * @return bool True if successful, false otherwise.
+	 * @param bool   $constant_value The constant value.
+	 * @return bool True on success, false on failure.
 	 */
-	private function update_wp_config( $constant_name, $constant_value ) {
-		$config_path    = ABSPATH . 'wp-config.php';
-		$config_content = file_get_contents( $config_path );
-
-		if ( false === $config_content ) {
+	private function update_single_wp_config_constant( $constant_name, $constant_value ) {
+		// Get the current content
+		$config_content = $this->filesystem->get_contents($this->wp_config_path);
+		if (false === $config_content) {
+			error_log('Could not read wp-config.php');
 			return false;
 		}
 
-		// Format the constant value.
-		if ( is_bool( $constant_value ) ) {
-			$constant_value = $constant_value ? 'true' : 'false';
-		} elseif ( is_string( $constant_value ) ) {
-			$constant_value = "'" . addslashes( $constant_value ) . "'";
-		}
+		// Convert boolean to string representation
+		$constant_value = $constant_value ? 'true' : 'false';
 
-		$constants_marker  = '/* Debug log admin viewer Constants */';
-		$constants_start   = strpos( $config_content, $constants_marker );
+		// Check if constant already exists
+		$pattern = "/define\s*\(\s*['\"]" . preg_quote($constant_name, '/') . "['\"]\s*,\s*(.*?)\s*\)/";
+		$needs_update = false;
 
-		if ( false === $constants_start ) {
-			// First constant being added.
-			$config_content  = rtrim( $config_content ) . "\n\n" . $constants_marker . "\n";
-			$config_content .= "define( '{$constant_name}', {$constant_value} );\n";
-		} else {
-			// Check if constant already exists.
-			if ( false === strpos( $config_content, "define( '{$constant_name}'" ) ) {
-				// Get the content before and after the marker.
-				$before_constants = substr( $config_content, 0, $constants_start );
-				$after_constants  = substr( $config_content, $constants_start );
-
-				// Clean up any extra newlines before the marker.
-				$before_constants = rtrim( $before_constants ) . "\n\n";
-
-				// Add the new constant definition right after the marker.
-				$after_constants = preg_replace(
-					'/(' . preg_quote( $constants_marker ) . ')\n/',
-					"$1\ndefine( '{$constant_name}', {$constant_value} );\n",
-					$after_constants,
-					1
+		if (preg_match($pattern, $config_content, $matches)) {
+			// Check if value is different
+			$current_value = trim($matches[1]);
+			$needs_update = ($current_value !== $constant_value);
+			
+			if ($needs_update) {
+				// Update existing constant
+				$config_content = preg_replace(
+					$pattern,
+					"define('$constant_name', $constant_value)",
+					$config_content
 				);
+			}
+		} else {
+			// Constant doesn't exist, need to add it
+			$needs_update = true;
 
-				$config_content = $before_constants . $after_constants;
+			// Find the stop editing comment
+			$stop_editing_comment = "/* That's all, stop editing! Happy blogging. */";
+			$pos = strpos($config_content, $stop_editing_comment);
+
+			if ($pos !== false) {
+				// Find our section
+				$section_comment = "/* Added by Debug Log Admin Viewer */";
+				$section_pos = strpos($config_content, $section_comment);
+
+				if ($section_pos === false || $section_pos > $pos) {
+					// Add new section with the constant
+					$insert_content = "\n{$section_comment}\n"
+						. "define('$constant_name', $constant_value);\n";
+					$config_content = substr_replace($config_content, $insert_content, $pos, 0);
+				} else {
+					// Add to existing section
+					$section_end = strpos($config_content, "/*", $section_pos + strlen($section_comment));
+					if ($section_end === false || $section_end > $pos) {
+						$section_end = $pos;
+					}
+
+					// Clean up any existing empty lines in our section
+					$section = substr($config_content, $section_pos, $section_end - $section_pos);
+					$section = preg_replace("/\n{2,}/", "\n", $section);
+					$config_content = substr_replace($config_content, $section, $section_pos, $section_end - $section_pos);
+
+					// Add constant to existing section
+					$insert_content = "define('$constant_name', $constant_value);\n";
+					$config_content = substr_replace($config_content, $insert_content, $section_end, 0);
+				}
+
+				// Ensure exactly one empty line before the stop editing comment
+				$config_content = preg_replace("/\n+(" . preg_quote($stop_editing_comment, '/') . ")/", "\n\n$1", $config_content);
+			} else {
+				// If no stop editing comment found, add at the end
+				$config_content .= "\n/* Added by Debug Log Admin Viewer */\n"
+					. "define('$constant_name', $constant_value);\n";
 			}
 		}
 
-		return false !== file_put_contents( $config_path, $config_content );
+		// Clean up multiple empty lines
+		$config_content = preg_replace("/\n{3,}/", "\n\n", $config_content);
+
+		if ($needs_update) {
+			// Create backup before making changes
+			if (!$this->create_backup()) {
+				error_log('Failed to create backup before updating wp-config.php');
+				return false;
+			}
+
+			// Write the updated content
+			if (!$this->filesystem->put_contents($this->wp_config_path, $config_content, FS_CHMOD_FILE)) {
+				error_log('Failed to write updated content to wp-config.php');
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Write content to wp-config.php file
+	 *
+	 * @param string $content New content to write
+	 * @return bool True on success, false on failure
+	 */
+	private function write_wp_config($content) {
+		// Ensure WP_Filesystem is initialized
+		if (empty($this->filesystem)) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+			global $wp_filesystem;
+			$this->filesystem = $wp_filesystem;
+		}
+
+		// Verify the file exists and is writable
+		if (!$this->filesystem->exists($this->wp_config_path) || !$this->filesystem->is_writable($this->wp_config_path)) {
+			error_log('wp-config.php is not writable or does not exist');
+			return false;
+		}
+
+		// Create backup before making changes
+		$backup_path = $this->create_backup();
+		if (false === $backup_path) {
+			error_log('Failed to create backup of wp-config.php');
+			return false;
+		}
+
+		// Write the new content
+		if (!$this->filesystem->put_contents($this->wp_config_path, $content, FS_CHMOD_FILE)) {
+			error_log('Failed to write to wp-config.php');
+			// Try to restore from backup
+			$backup_content = $this->filesystem->get_contents($backup_path);
+			if (false !== $backup_content) {
+				$this->filesystem->put_contents($this->wp_config_path, $backup_content, FS_CHMOD_FILE);
+			}
+			return false;
+		}
+
+		// Verify the new content was written successfully
+		$new_content = $this->filesystem->get_contents($this->wp_config_path);
+		if (false === $new_content || $new_content !== $content) {
+			// Restore the backup if verification fails
+			$backup_content = $this->filesystem->get_contents($backup_path);
+			if (false !== $backup_content) {
+				$this->filesystem->put_contents($this->wp_config_path, $backup_content, FS_CHMOD_FILE);
+			}
+			error_log('Failed to verify the new content in wp-config.php');
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Get the debug log content.
+	 *
+	 * @return string The debug log content.
+	 */
+	public function get_debug_log_content() {
+		$log_file = WP_CONTENT_DIR . '/debug.log';
+		
+		if (!file_exists($log_file)) {
+			return '';
+		}
+
+		if (!$this->filesystem->is_writable($log_file)) {
+			error_log('Debug log file is not writable');
+			return '';
+		}
+
+		$content = file_get_contents($log_file);
+		return $content ?: '';
+	}
+
+	/**
+	 * Clear the debug log file.
+	 *
+	 * @return bool True on success, false on failure.
+	 */
+	public function clear_debug_log() {
+		$log_file = WP_CONTENT_DIR . '/debug.log';
+		
+		if (!file_exists($log_file)) {
+			return true;
+		}
+
+		// Ensure WP_Filesystem is initialized
+		if (empty($this->filesystem)) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+			global $wp_filesystem;
+			$this->filesystem = $wp_filesystem;
+		}
+
+		if (!$this->filesystem->is_writable($log_file)) {
+			error_log('Debug log file is not writable');
+			return false;
+		}
+
+		return $this->filesystem->put_contents($log_file, '') !== false;
 	}
 
 	/**
@@ -725,6 +764,7 @@ class Debug_Log_Admin_Viewer_Admin {
 		// Pagination settings
 		$entries_per_page = 100;
 		$current_page     = isset( $_GET['log_page'] ) ? max( 1, intval( $_GET['log_page'] ) ) : 1;
+		$current_page     = esc_html( $current_page );
 		$total_pages      = ceil( count( $filtered_entries ) / $entries_per_page );
 		$offset           = ( $current_page - 1 ) * $entries_per_page;
 		$paged_entries    = array_slice( $filtered_entries, $offset, $entries_per_page );
@@ -779,7 +819,7 @@ class Debug_Log_Admin_Viewer_Admin {
 						</div>
 					<?php endforeach; ?>
 
-					<?php if ( $total_pages > 1 ) : ?>
+					<?php if ( esc_html( $total_pages ) > 1 ) : ?>
 						<div class="debug-log-pagination">
 							<?php
 							$base_url = remove_query_arg( array( 'log_page', 'filters' ) );
@@ -799,15 +839,15 @@ class Debug_Log_Admin_Viewer_Admin {
 								printf(
 									/* translators: 1: Current page, 2: Total pages */
 									esc_html__( 'Page %1$s of %2$s', 'debug-log-admin-viewer' ),
-									$current_page,
-									$total_pages
+									esc_html( $current_page ),
+									esc_html( $total_pages )
 								);
 								?>
 							</span>
 
 							<?php
 							// Next page
-							if ( $current_page < $total_pages ) :
+							if ( $current_page < esc_html( $total_pages ) ) :
 								$next_url = add_query_arg( array(
 									'log_page' => $current_page + 1,
 									'filters' => implode(',', $active_filters)
@@ -847,6 +887,152 @@ class Debug_Log_Admin_Viewer_Admin {
 	}
 
 	/**
+	 * Get WordPress configuration constants.
+	 *
+	 * @return array Array of configuration constants and their values.
+	 */
+	private function get_config_constants() {
+		$defaults = array(
+			'WP_DEBUG' => false,
+			'WP_DEBUG_LOG' => false,
+			'WP_DEBUG_DISPLAY' => false,
+		);
+
+		if (!$this->wp_config_path || !$this->filesystem->exists($this->wp_config_path)) {
+			return $defaults;
+		}
+
+		$content = $this->filesystem->get_contents($this->wp_config_path);
+		if (false === $content) {
+			return $defaults;
+		}
+
+		foreach ($defaults as $constant => $default) {
+			if (preg_match("/define\s*\(\s*['\"]" . preg_quote($constant, '"') . "['\"]\s*,\s*(true|false)\s*\)\s*;/i", $content, $matches)) {
+				$defaults[$constant] = 'true' === strtolower($matches[1]);
+			}
+		}
+
+		return $defaults;
+	}
+
+	/**
+	 * Get list of backup files.
+	 *
+	 * @return array Array of backup file paths.
+	 */
+	private function get_backup_files() {
+		// Ensure WP_Filesystem is initialized
+		if (empty($this->filesystem)) {
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			WP_Filesystem();
+			global $wp_filesystem;
+			$this->filesystem = $wp_filesystem;
+		}
+
+		// Get list of files using WP_Filesystem
+		$files = $this->filesystem->dirlist($this->backup_dir);
+		if (false === $files) {
+			return array();
+		}
+
+		$backup_files = array();
+		foreach ($files as $file) {
+			if (preg_match('/^wp-config-backup-.*\.php$/', $file['name'])) {
+				$filepath = trailingslashit($this->backup_dir) . $file['name'];
+				$backup_files[] = array(
+					'path' => $filepath,
+					'time' => $file['time']
+				);
+			}
+		}
+
+		// Sort by creation time (newest first)
+		usort($backup_files, function($a, $b) {
+			return (int)$b['time'] - (int)$a['time'];
+		});
+
+		// Return just the file paths
+		return array_column($backup_files, 'path');
+	}
+
+	/**
+	 * Display the options page content.
+	 */
+	public function display_options_page() {
+		// Get current tab.
+		$active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'debug';
+		
+		// Get actual values from wp-config.php.
+		$config_constants = $this->get_config_constants();
+		$config_writable = $this->filesystem->is_writable( $this->wp_config_path );
+		
+		// Handle log clearing.
+		if ( isset( $_POST['clear_debug_log'] ) && check_admin_referer( 'debug_log_admin_viewer_clear_log_nonce' ) ) {
+			$this->clear_debug_log();
+		}
+
+		// Get debug log content.
+		$log_content = $this->get_debug_log_content();
+		?>
+		<div class="wrap">
+			<h2><?php esc_html_e( 'Debug Log Admin Viewer Settings', 'debug-log-admin-viewer' ); ?></h2>
+
+			<?php if ( ! $config_writable ) : ?>
+				<div class="notice notice-error">
+					<p><?php esc_html_e( 'Warning: wp-config.php is not writable. Please check file permissions or contact your server administrator.', 'debug-log-admin-viewer' ); ?></p>
+				</div>
+			<?php endif; ?>
+
+			<form method="post" action="options.php">
+				<?php
+				settings_fields( 'debug_log_admin_viewer_settings' );
+				wp_nonce_field('debug_log_admin_viewer_nonce_action', 'debug_log_admin_viewer_nonce_field');
+				?>
+				<table class="form-table" role="presentation">
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG', 'debug-log-admin-viewer' ); ?></th>
+						<td>
+							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug]" 
+								value="1" <?php checked( $config_constants['WP_DEBUG'], true ); ?> />
+							<p class="description"><?php esc_html_e( 'Enables WordPress debug mode', 'debug-log-admin-viewer' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_LOG', 'debug-log-admin-viewer' ); ?></th>
+						<td>
+							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug_log]" 
+								value="1" <?php checked( $config_constants['WP_DEBUG_LOG'], true ); ?> />
+							<p class="description"><?php esc_html_e( 'Saves debug messages to wp-content/debug.log', 'debug-log-admin-viewer' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Enable WP_DEBUG_DISPLAY', 'debug-log-admin-viewer' ); ?></th>
+						<td>
+							<input type="checkbox" name="debug_log_admin_viewer_settings[wp_debug_display]" 
+								value="1" <?php checked( $config_constants['WP_DEBUG_DISPLAY'], true ); ?> />
+							<p class="description"><?php esc_html_e( 'Shows debug messages on the front end', 'debug-log-admin-viewer' ); ?></p>
+						</td>
+					</tr>
+				</table>
+
+				<?php submit_button(); ?>
+			</form>
+
+			<?php if ( $config_constants['WP_DEBUG_LOG'] && ! empty( $log_content ) ) : ?>
+				<h3><?php esc_html_e( 'Debug Log', 'debug-log-admin-viewer' ); ?></h3>
+				<form method="post">
+					<?php wp_nonce_field( 'debug_log_admin_viewer_clear_log_nonce' ); ?>
+					<input type="submit" name="clear_debug_log" class="button button-secondary" 
+						value="<?php esc_attr_e( 'Clear Log File', 'debug-log-admin-viewer' ); ?>" />
+				</form>
+				<?php $this->display_debug_log_admin_viewer( $log_content ); ?>
+			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Register the stylesheets and JavaScript for the admin area.
 	 */
 	public function enqueue_admin_scripts() {
@@ -862,13 +1048,8 @@ class Debug_Log_Admin_Viewer_Admin {
 				'all'
 			);
 
-			wp_enqueue_script(
-				'clipboard',
-				'https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.8/clipboard.min.js',
-				array(),
-				'2.0.8',
-				true
-			);
+			// Use WordPress core's clipboard.js
+			wp_enqueue_script('clipboard');
 
 			wp_enqueue_script(
 				$this->plugin_name,

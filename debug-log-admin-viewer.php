@@ -12,11 +12,10 @@
  * Description:       A powerful debug log admin viewer with filtering and search capabilities, plus debug settings management.
  * Version:           1.0.0
  * Author:            TWK Media
- * Author URI:        thewebkitchen.co.uk
+ * Author URI:        https://www.thewebkitchen.co.uk/
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       debug-log-admin-viewer
- * Domain Path:       /languages
  */
 
 // If this file is called directly, abort.
