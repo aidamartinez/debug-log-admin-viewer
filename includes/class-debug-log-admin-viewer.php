@@ -82,20 +82,7 @@ class Debug_Log_Admin_Viewer {
 	 * @access   private
 	 */
 	private function set_locale() {
-		add_action( 'plugins_loaded', array( $this, 'load_plugin_textdomain' ) );
-	}
-
-	/**
-	 * Load the plugin text domain for translation.
-	 *
-	 * @since    1.0.0
-	 */
-	public function load_plugin_textdomain() {
-		load_plugin_textdomain(
-			'debug-log-admin-viewer',
-			false,
-			dirname( dirname( plugin_basename( __FILE__ ) ) ) . '/languages/'
-		);
+		// No need to load plugin text domain for WordPress.org hosted plugins
 	}
 
 	/**

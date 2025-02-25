@@ -34,8 +34,8 @@ require plugin_dir_path( __FILE__ ) . 'includes/class-debug-log-admin-viewer.php
 /**
  * Begins execution of the plugin.
  */
-function run_debug_log_admin_viewer() {
+function debug_log_admin_viewer_run() {
 	$plugin = new Debug_Log_Admin_Viewer();
 	$plugin->run();
 }
-run_debug_log_admin_viewer();
+debug_log_admin_viewer_run();
