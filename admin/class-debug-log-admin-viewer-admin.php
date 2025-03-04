@@ -86,7 +86,7 @@ class Debug_Log_Admin_Viewer_Admin {
 		$this->version = $version;
 
 		// Initialize filesystem early
-		require_once WP_CONTENT_DIR . '/../wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/file.php';
 		WP_Filesystem();
 		global $wp_filesystem;
 		$this->filesystem = $wp_filesystem;
@@ -101,7 +101,7 @@ class Debug_Log_Admin_Viewer_Admin {
 	public function init() {
 		// Re-initialize filesystem if needed
 		if (empty($this->filesystem)) {
-			require_once WP_CONTENT_DIR . '/../wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/file.php';
 			WP_Filesystem();
 			global $wp_filesystem;
 			$this->filesystem = $wp_filesystem;
@@ -161,14 +161,14 @@ class Debug_Log_Admin_Viewer_Admin {
 	private function debug_log_admin_viewer_find_wp_config_path() {
 		// Re-initialize filesystem if needed
 		if (empty($this->filesystem)) {
-			require_once WP_CONTENT_DIR . '/../wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/file.php';
 
 			WP_Filesystem();
 			global $wp_filesystem;
 			$this->filesystem = $wp_filesystem;
 		}
 
-		$path = WP_CONTENT_DIR . '/../wp-config.php';
+		$path = ABSPATH . 'wp-config.php';
 		if (!$this->filesystem->exists($path)) {
 			$path = dirname(ABSPATH) . '/wp-config.php';
 		}
@@ -485,7 +485,7 @@ class Debug_Log_Admin_Viewer_Admin {
 
 		// Ensure WP_Filesystem is initialized
 		if (empty($this->filesystem)) {
-			require_once WP_CONTENT_DIR . '/../wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/file.php';
 			WP_Filesystem();
 			global $wp_filesystem;
 			$this->filesystem = $wp_filesystem;
