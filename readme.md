@@ -30,11 +30,11 @@ A WordPress plugin that provides debugging utilities and a powerful debug log ad
 ## Security
 
 The plugin includes several security measures:
-* Automatic backup creation before any wp-config.php modifications.
-* Backup files are protected with .htaccess rules.
-* Proper file permissions management.
-* Nonce verification for all actions.
-* Capability checks for administrative functions.
+- Automatic backup creation before any wp-config.php modifications.
+- Backup files are protected with .htaccess rules.
+- Proper file permissions management.
+- Nonce verification for all actions.
+- Capability checks for administrative functions.
 
 ## Usage
 
@@ -49,15 +49,6 @@ The plugin includes several security measures:
 
 1. The admin panel. ![Admin Panel](assets/screenshot-1.png)
 2. The log viewer. ![Log Viewer](assets/screenshot-2.png)
-
-## Changelog
-
-### 1.0.0
-
-* Initial release.
-* WordPress debug settings management.
-* Advanced debug log admin viewer with filtering and search.
-* Automatic wp-config.php backup system.
 
 ## Frequently Asked Questions
 

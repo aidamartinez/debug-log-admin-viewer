@@ -40,14 +40,6 @@ The plugin includes several security measures:
 2. The log viewer.
 
 
-== Changelog ==
-
-= 1.0.0 =
-- Initial release.
-- WordPress debug settings management.
-- Advanced debug log admin viewer with filtering and search.
-- Automatic wp-config.php backup system.
-
 == Frequently Asked Questions ==
 Q: How do I access the debug log viewer?
 A: Navigate to Settings > Debug Log Admin Viewer in the WordPress admin panel.
