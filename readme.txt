@@ -56,10 +56,17 @@ The plugin includes several security measures:
 
 
 == Frequently Asked Questions ==
+
+Q: Where are the backup files stored?
+
+A: Backup files are automatically stored in the `wp-content/uploads/debug-log-admin-viewer/` directory. The plugin keeps the 5 most recent backups and protects them with proper file permissions and .htaccess rules. You can find the exact path in the plugin settings page, where you can also copy it with a single click.
+
 Q: How do I access the debug log viewer?
+
 A: Navigate to Settings > Debug Log Admin Viewer in the WordPress admin panel.
 
 Q: Who is behind this plugin?
+
 A: This plugin is developed and maintained by [TWK Media](https://www.thewebkitchen.co.uk/).
 
 
