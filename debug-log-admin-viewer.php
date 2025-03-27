@@ -10,7 +10,7 @@
  * Plugin Name:       Debug log admin viewer
  * Plugin URI:        https://wordpress.org/plugins/debug-log-admin-viewer
  * Description:       A powerful debug log admin viewer with filtering and search capabilities, plus debug settings management.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            TWK Media
  * Author URI:        https://www.thewebkitchen.co.uk/
  * License:           GPL-2.0+
@@ -23,7 +23,7 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
-define( 'DEBUG_LOG_ADMIN_VIEWER_VERSION', '1.0.0' );
+define( 'DEBUG_LOG_ADMIN_VIEWER_VERSION', '1.0.1' );
 define( 'DEBUG_LOG_ADMIN_VIEWER_DIR', plugin_dir_path( __FILE__ ) );
 
 /**
