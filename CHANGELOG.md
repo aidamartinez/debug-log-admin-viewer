@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-03-27
+### Added
+- Important disclaimer about wp-config.php modifications and backup recommendations
+- Enhanced UI for backup location display
+- One-click copy functionality for backup location path
+
+### Changed
+- Label text change for brevity
+
+
 ## [1.0.0] - 2025-03-12
 ### Added
 - WordPress debug settings management interface
