@@ -10,6 +10,16 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 A WordPress plugin providing a user-friendly interface to manage debug settings and view debug logs with advanced filtering capabilities.
 
+== ⚠️ Important Disclaimer ==
+
+This plugin modifies your wp-config.php file directly. While the plugin automatically creates backups before any modifications (keeping the 5 most recent backups), it is strongly recommended to:
+
+1. Create a manual backup of your wp-config.php file before installing and using this plugin
+2. Note the location of automatic backups (shown in the plugin settings page)
+3. Test the plugin in a staging environment first
+
+The plugin may not work if your wp-config.php has unusual formatting or custom modifications. In case of any issues, you can restore your wp-config.php from the automatic backups located in wp-content/uploads/debug-log-admin-viewer/.
+
 == Description ==
 Debug log admin viewer is a WordPress plugin designed to make debugging easier by providing a user-friendly interface to manage WordPress debug settings and view debug logs. It allows you to modify debug-related constants in wp-config.php directly from the WordPress admin panel and provides an advanced log viewer with filtering and search capabilities.
 

@@ -5,6 +5,7 @@ jQuery(function($) {
 	$(document).ready(function() {
 		// Initialize clipboard.js
 		new ClipboardJS('.copy-log');
+		new ClipboardJS('.backup-location');
 
 		// Handle copy button feedback
 		$('.copy-log').on('click', function() {
@@ -12,6 +13,17 @@ jQuery(function($) {
 			$button.addClass('copied');
 			setTimeout(function() {
 				$button.removeClass('copied');
+			}, 1500);
+		});
+
+		// Handle backup location copy feedback
+		$('.backup-location').on('click', function() {
+			var $location = $(this);
+			var $feedback = $location.siblings('.copied-feedback');
+			
+			$feedback.fadeIn(200);
+			setTimeout(function() {
+				$feedback.fadeOut(200);
 			}, 1500);
 		});
 

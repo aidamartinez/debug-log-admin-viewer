@@ -273,3 +273,26 @@
     height: 16px;
     vertical-align: text-bottom;
 }
+
+.backup-location {
+    cursor: pointer;
+    padding: 2px 4px;
+    background: #f0f0f1;
+    border-radius: 3px;
+    transition: background 0.2s ease;
+}
+
+.backup-location:hover {
+    background: #e0e0e1;
+}
+
+.backup-location:focus {
+    outline: 1px solid #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.copied-feedback {
+    color: #008a20;
+    margin-left: 8px;
+    font-style: italic;
+}

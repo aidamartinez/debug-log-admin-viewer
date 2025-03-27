@@ -1,20 +1,23 @@
 # Debug Log Admin Viewer
 
 Contributors: twkmedia
-
 Tags: debug, log, viewer
-
 Requires at least: 5.0
-
 Tested up to: 6.7
-
 Stable tag: 1.0.0
-
 Requires PHP: 7.4
-
 License: GPLv2 or later
-
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+## ⚠️ Important Disclaimer
+
+This plugin modifies your wp-config.php file directly. While the plugin automatically creates backups before any modifications (keeping the 5 most recent backups), it is strongly recommended to:
+
+1. Create a manual backup of your wp-config.php file before installing and using this plugin
+2. Note the location of automatic backups (shown in the plugin settings page)
+3. Test the plugin in a staging environment first
+
+The plugin may not work if your wp-config.php has unusual formatting or custom modifications. In case of any issues, you can restore your wp-config.php from the automatic backups located in wp-content/uploads/debug-log-admin-viewer/.
 
 ## Short Description
 

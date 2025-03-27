@@ -278,7 +278,7 @@ class Debug_Log_Admin_Viewer_Admin {
 	public function add_options_page() {
 		add_options_page(
 			'Debug Log Admin Viewer Settings',
-			'Debug Log Admin Viewer',
+			'Debug Log Viewer',
 			'manage_options',
 			$this->plugin_name,
 			array( $this, 'display_options_page' )
@@ -824,6 +824,17 @@ class Debug_Log_Admin_Viewer_Admin {
 		?>
 		<div class="wrap">
 			<h2><?php esc_html_e( 'Debug Log Admin Viewer Settings', 'debug-log-admin-viewer' ); ?></h2>
+
+			<p class="description">
+				<?php 
+				printf(
+					esc_html__('Backup config files location: %s', 'debug-log-admin-viewer'),
+					'<code class="backup-location" role="button" tabindex="0" data-clipboard-text="' . esc_attr($this->backup_dir) . '" title="' . esc_attr__('Click to copy path', 'debug-log-admin-viewer') . '">' . 
+					esc_html($this->backup_dir) . '</code>'
+				); 
+				?>
+				<span class="copied-feedback" style="display: none;"><?php esc_html_e('Copied!', 'debug-log-admin-viewer'); ?></span>
+			</p>
 
 			<?php if ( ! $config_writable ) : ?>
 				<div class="notice notice-error">
