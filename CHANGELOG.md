@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-08-08
+### Changed
+- The log content is now displayed in reverse order, with the newest entries first.
+
+
 ## [1.0.1] - 2025-03-27
 ### Added
 - Important disclaimer about wp-config.php modifications and backup recommendations
@@ -35,5 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - WP_DEBUG_LOG
   - WP_DEBUG_DISPLAY
 
+[1.0.2]: https://github.com/aidamartinez/debug-log-admin-viewer/releases/tag/v1.0.2
 [1.0.1]: https://github.com/aidamartinez/debug-log-admin-viewer/releases/tag/v1.0.1
 [1.0.0]: https://github.com/aidamartinez/debug-log-admin-viewer/releases/tag/v1.0.0

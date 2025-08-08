@@ -453,7 +453,7 @@ class Debug_Log_Admin_Viewer_Admin {
 	/**
 	 * Get the debug log content.
 	 *
-	 * @return string The debug log content.
+	 * @return string The debug log content with newest entries first.
 	 */
 	public function debug_log_admin_viewer_get_debug_log_content() {
 		$log_file = WP_CONTENT_DIR . '/debug.log';
@@ -467,8 +467,24 @@ class Debug_Log_Admin_Viewer_Admin {
 			return '';
 		}
 
-		$content = file_get_contents($log_file);
-		return $content ?: '';
+		$content = @file_get_contents($log_file);
+		if ($content === false) {
+			error_log('Failed to read debug log file');
+			return '';
+		}
+		
+		$content = trim($content);
+		if (empty($content)) {
+			return '';
+		}
+		
+		// Split the content into lines and reverse the array to show newest first
+		$lines = explode(PHP_EOL, $content);
+		$lines = array_filter($lines); // Remove empty lines
+		$lines = array_reverse($lines);
+		
+		// Rebuild the content with newlines
+		return implode(PHP_EOL, $lines);
 	}
 
 	/**
